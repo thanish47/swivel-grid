@@ -1,0 +1,19 @@
+{
+  "name": "swivel-grid",
+  "version": "1.0.0",
+  "description": "A web component library for swivel grid functionality",
+  "main": "index.html",
+  "scripts": {
+    "start": "python -m http.server 4400",
+    "serve": "python3 -m http.server 4400"
+  },
+  "keywords": [
+    "web-components",
+    "grid",
+    "swivel",
+    "html",
+    "javascript"
+  ],
+  "author": "",
+  "license": "MIT"
+}
