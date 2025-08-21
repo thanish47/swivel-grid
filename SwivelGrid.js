@@ -1,4 +1,4 @@
-class HelloWorld extends HTMLElement {
+class SwivelGrid extends HTMLElement {
     constructor() {
         super();
         this.attachShadow({ mode: 'open' });
@@ -36,12 +36,12 @@ class HelloWorld extends HTMLElement {
                 }
             </style>
             <div class="container">
-                <h1>Hello, World!</h1>
-                <p>Welcome to Swivel Grid - your first web component is working!</p>
+                <h1>Swivel Grid</h1>
+                <p>Welcome to Swivel Grid - your web component is working!</p>
                 <p>This is a custom HTML element built with vanilla JavaScript.</p>
             </div>
         `;
     }
 }
 
-customElements.define('hello-world', HelloWorld);
+customElements.define('swivel-grid', SwivelGrid);
