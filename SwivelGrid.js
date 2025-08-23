@@ -13,6 +13,14 @@ class SwivelGrid extends HTMLElement {
         this._rows = [];
         this._searchInput = null;
         
+        // Property precedence tracking
+        this._propSet = {
+            schema: false,
+            rows: false,
+            layoutType: false,
+            searchInput: false
+        };
+        
         // Property handlers
         this._sortHandler = null;
         this._scrollUpHandler = null;
@@ -23,19 +31,36 @@ class SwivelGrid extends HTMLElement {
         this._searchInputListener = null;
         this._scrollContainer = null;
         this._isScrolling = false;
+        this._onScroll = this._handleScroll.bind(this);
     }
 
     // Property getters/setters
     get schema() { return this._schema; }
-    set schema(value) { 
+    set schema(value) {
+        this._propSet.schema = true;
         this._schema = Array.isArray(value) ? value : [];
         this.render();
     }
 
     get rows() { return this._rows; }
-    set rows(value) { 
+    set rows(value) {
+        this._propSet.rows = true;
         this._rows = Array.isArray(value) ? value : [];
         this.render();
+    }
+
+    get layoutType() { return this._layoutType; }
+    set layoutType(value) {
+        this._propSet.layoutType = true;
+        this._layoutType = (value === 'table' || value === 'list') ? 'table' : 'grid';
+        this.render();
+    }
+
+    get searchInput() { return this._searchInput; }
+    set searchInput(value) {
+        this._propSet.searchInput = true;
+        this._searchInput = value || null;
+        this._bindSearchInput();
     }
 
     get sortHandler() { return this._sortHandler; }
@@ -53,9 +78,17 @@ class SwivelGrid extends HTMLElement {
     attributeChangedCallback(name, oldValue, newValue) {
         if (oldValue === newValue) return;
 
+        // Property precedence: if property was set, ignore attribute changes
+        if ((name === 'schema' && this._propSet.schema) ||
+            (name === 'rows' && this._propSet.rows) ||
+            (name === 'layout-type' && this._propSet.layoutType) ||
+            (name === 'search-input' && this._propSet.searchInput)) {
+            return;
+        }
+
         switch (name) {
             case 'layout-type':
-                this._layoutType = newValue === 'table' ? 'table' : 'grid';
+                this._layoutType = (newValue === 'table' || newValue === 'list') ? 'table' : 'grid';
                 break;
             case 'schema':
                 this._parseJsonAttribute('schema', newValue);
@@ -81,11 +114,20 @@ class SwivelGrid extends HTMLElement {
     }
 
     connectedCallback() {
-        // Initialize from attributes
-        this._layoutType = this.getAttribute('layout-type') === 'table' ? 'table' : 'grid';
-        this._parseJsonAttribute('schema', this.getAttribute('schema'));
-        this._parseJsonAttribute('rows', this.getAttribute('rows'));
-        this._searchInput = this.getAttribute('search-input');
+        // Initialize from attributes (only if properties weren't set)
+        if (!this._propSet.layoutType) {
+            const layoutAttr = this.getAttribute('layout-type');
+            this._layoutType = (layoutAttr === 'table' || layoutAttr === 'list') ? 'table' : 'grid';
+        }
+        if (!this._propSet.schema) {
+            this._parseJsonAttribute('schema', this.getAttribute('schema'));
+        }
+        if (!this._propSet.rows) {
+            this._parseJsonAttribute('rows', this.getAttribute('rows'));
+        }
+        if (!this._propSet.searchInput) {
+            this._searchInput = this.getAttribute('search-input');
+        }
         
         this.render();
         this._bindSearchInput();
@@ -127,14 +169,15 @@ class SwivelGrid extends HTMLElement {
         
         this._scrollContainer = this.shadowRoot.querySelector('.scroll-container');
         if (this._scrollContainer) {
-            this._scrollContainer.addEventListener('scroll', this._handleScroll.bind(this));
+            this._scrollContainer.addEventListener('scroll', this._onScroll);
         }
     }
 
     _unbindScrollListeners() {
         if (this._scrollContainer) {
-            this._scrollContainer.removeEventListener('scroll', this._handleScroll.bind(this));
+            this._scrollContainer.removeEventListener('scroll', this._onScroll);
         }
+        this._scrollContainer = null;
     }
 
     _handleScroll() {
@@ -147,19 +190,58 @@ class SwivelGrid extends HTMLElement {
             const scrollHeight = container.scrollHeight;
             const clientHeight = container.clientHeight;
             
-            // Calculate visible indices (simplified)
-            const rowHeight = this._layoutType === 'table' ? 40 : 200; // Estimated heights
-            const firstVisibleIndex = Math.floor(scrollTop / rowHeight);
-            const lastVisibleIndex = Math.min(this._rows.length - 1, 
-                Math.ceil((scrollTop + clientHeight) / rowHeight));
+            // More robust scroll index calculation
+            let firstVisibleIndex = 0;
+            let lastVisibleIndex = this._rows.length - 1;
             
-            // Top threshold
+            if (this._layoutType === 'table') {
+                const rows = container.querySelectorAll('tbody tr');
+                if (rows.length > 0) {
+                    // Find first and last visible rows based on their position
+                    const containerRect = container.getBoundingClientRect();
+                    for (let i = 0; i < rows.length; i++) {
+                        const rowRect = rows[i].getBoundingClientRect();
+                        if (rowRect.bottom > containerRect.top) {
+                            firstVisibleIndex = i;
+                            break;
+                        }
+                    }
+                    for (let i = rows.length - 1; i >= 0; i--) {
+                        const rowRect = rows[i].getBoundingClientRect();
+                        if (rowRect.top < containerRect.bottom) {
+                            lastVisibleIndex = i;
+                            break;
+                        }
+                    }
+                }
+            } else {
+                const cards = container.querySelectorAll('.grid-card');
+                if (cards.length > 0) {
+                    const containerRect = container.getBoundingClientRect();
+                    for (let i = 0; i < cards.length; i++) {
+                        const cardRect = cards[i].getBoundingClientRect();
+                        if (cardRect.bottom > containerRect.top) {
+                            firstVisibleIndex = i;
+                            break;
+                        }
+                    }
+                    for (let i = cards.length - 1; i >= 0; i--) {
+                        const cardRect = cards[i].getBoundingClientRect();
+                        if (cardRect.top < containerRect.bottom) {
+                            lastVisibleIndex = i;
+                            break;
+                        }
+                    }
+                }
+            }
+            
+            // Top threshold - exact top or within 24px
             if (scrollTop <= 24) {
                 this._scrollUpHandler?.({ firstVisibleIndex });
                 this._dispatchEvent('scrollUp', { firstVisibleIndex });
             }
             
-            // Bottom threshold
+            // Bottom threshold - exact bottom or within 24px
             if (scrollTop + clientHeight >= scrollHeight - 24) {
                 this._scrollDownHandler?.({ lastVisibleIndex });
                 this._dispatchEvent('scrollDown', { lastVisibleIndex });
@@ -184,10 +266,18 @@ class SwivelGrid extends HTMLElement {
     }
 
     appendData(rows) {
-        if (Array.isArray(rows)) {
-            const startIndex = this._rows.length;
-            this._rows.push(...rows);
-            this._renderAppendedRows(rows, startIndex);
+        if (!Array.isArray(rows) || rows.length === 0) return;
+        
+        this._rows.push(...rows);
+        
+        // If there's an active sort, re-sort and re-render
+        const activeSort = this._schema.find(col => col.sort);
+        if (activeSort) {
+            this._sortData(activeSort.key, activeSort.sort, activeSort.sortComparator);
+            this.render();
+        } else {
+            // Otherwise, just append the new rows
+            this._renderAppendedRows(rows);
         }
     }
 
@@ -198,6 +288,12 @@ class SwivelGrid extends HTMLElement {
 
     render() {
         if (!this.shadowRoot) return;
+        
+        // Apply initial sorting if specified in schema
+        const initialSort = this._schema.find(col => col.sort === 'ASC' || col.sort === 'DESC');
+        if (initialSort && this._rows.length > 0) {
+            this._sortData(initialSort.key, initialSort.sort, initialSort.sortComparator);
+        }
         
         this.shadowRoot.innerHTML = `
             <style>
@@ -212,12 +308,12 @@ class SwivelGrid extends HTMLElement {
         this._attachSortListeners();
     }
 
-    _renderAppendedRows(newRows, startIndex) {
+    _renderAppendedRows(newRows) {
         if (this._layoutType === 'table') {
             const tbody = this.shadowRoot.querySelector('tbody');
             if (tbody) {
                 const fragment = document.createDocumentFragment();
-                newRows.forEach((row, index) => {
+                newRows.forEach((row) => {
                     const tr = document.createElement('tr');
                     tr.innerHTML = this._renderTableRow(row);
                     fragment.appendChild(tr);
@@ -437,6 +533,19 @@ class SwivelGrid extends HTMLElement {
                 color: var(--text-color);
             }
 
+            /* Screen reader only text */
+            .sr-only {
+                position: absolute;
+                width: 1px;
+                height: 1px;
+                padding: 0;
+                margin: -1px;
+                overflow: hidden;
+                clip: rect(0, 0, 0, 0);
+                white-space: nowrap;
+                border: 0;
+            }
+
             /* Responsive */
             @media (max-width: 768px) {
                 .grid-container {
@@ -455,7 +564,8 @@ class SwivelGrid extends HTMLElement {
         const minWidths = this._schema
             .map(col => col.minWidth)
             .filter(Boolean)
-            .map(width => parseInt(width.replace('px', '')));
+            .map(width => /px$/.test(width) ? parseInt(width, 10) : NaN)
+            .filter(Number.isFinite);
         return minWidths.length ? Math.max(...minWidths) : 240;
     }
 
@@ -490,7 +600,7 @@ class SwivelGrid extends HTMLElement {
                                     style="${this._getColumnStyles(col)}"
                                     role="columnheader"
                                     tabindex="0">
-                                    ${col.label}
+                                    ${this._escapeHtml(col.label)}
                                 </th>
                             `).join('')}
                         </tr>
@@ -545,7 +655,7 @@ class SwivelGrid extends HTMLElement {
                 <section role="group" aria-labelledby="${labelId}">
                     ${otherCols.map((col, index) => `
                         <div class="grid-field">
-                            <span class="grid-field-label" ${index === 0 ? `id="${labelId}"` : ''}>${col.label}:</span>
+                            <span class="grid-field-label" ${index === 0 ? `id="${labelId}"` : ''}>${this._escapeHtml(col.label)}:</span>
                             <span class="grid-field-value">${this._renderCellContent(row[col.key], col)}</span>
                         </div>
                     `).join('')}
@@ -586,6 +696,7 @@ class SwivelGrid extends HTMLElement {
         return `
             <div class="rating" aria-label="Rating: ${rating.value} out of ${rating.max}">
                 ${stars.join('')}
+                <span class="sr-only">Rating: ${rating.value} out of ${rating.max}</span>
             </div>
         `;
     }
