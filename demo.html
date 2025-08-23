@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Swivel Grid - Enhanced Demo</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f6f8fa;
+        }
+        
+        .demo-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            padding: 24px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .demo-header {
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid #e1e5e9;
+        }
+        
+        .demo-header h1 {
+            margin: 0 0 8px 0;
+            color: #24292f;
+        }
+        
+        .demo-header p {
+            margin: 0;
+            color: #656d76;
+        }
+        
+        .demo-controls {
+            margin-bottom: 20px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: center;
+        }
+        
+        .demo-controls input {
+            padding: 8px 12px;
+            border: 1px solid #d1d9e0;
+            border-radius: 6px;
+            font-size: 14px;
+            min-width: 250px;
+        }
+        
+        .demo-controls button {
+            padding: 8px 16px;
+            background: #007acc;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.2s;
+        }
+        
+        .demo-controls button:hover {
+            background: #0056a3;
+        }
+        
+        .demo-controls button:active {
+            background: #004080;
+        }
+        
+        .info-section {
+            margin-top: 24px;
+            padding-top: 16px;
+            border-top: 1px solid #e1e5e9;
+        }
+        
+        .info-section h3 {
+            margin: 0 0 8px 0;
+            color: #24292f;
+        }
+        
+        .info-section p {
+            margin: 0;
+            color: #656d76;
+            font-size: 14px;
+        }
+
+        .feature-list {
+            list-style: none;
+            padding: 0;
+            margin: 8px 0;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 8px;
+        }
+
+        .feature-list li {
+            color: #656d76;
+            font-size: 14px;
+            padding: 4px 0;
+        }
+
+        .feature-list li::before {
+            content: "✓ ";
+            color: #28a745;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="demo-container">
+        <div class="demo-header">
+            <h1>Swivel Grid - Enhanced Web Component</h1>
+            <p>A flexible grid/table component with sorting, search, special column types, and accessibility features.</p>
+        </div>
+        
+        <div class="demo-controls">
+            <input type="text" id="product-search" placeholder="Search products..." />
+            <button id="layout-toggle">Switch to Table View</button>
+            <button id="add-data">Add Random Product</button>
+        </div>
+        
+        <swivel-grid></swivel-grid>
+        
+        <div class="info-section">
+            <h3>Features Demonstrated</h3>
+            <ul class="feature-list">
+                <li>Grid and Table layout modes</li>
+                <li>Special column types (rating stars, images)</li>
+                <li>External search input binding</li>
+                <li>Click-to-sort with visual indicators</li>
+                <li>Column width constraints (minWidth/maxWidth)</li>
+                <li>Responsive design</li>
+                <li>Accessibility with ARIA labels</li>
+                <li>Dynamic data updates (setData/appendData)</li>
+                <li>Custom events (swivel:sort, swivel:search, etc.)</li>
+                <li>Error handling for images and ratings</li>
+                <li>Shadow DOM encapsulation</li>
+                <li>Framework-agnostic web component</li>
+            </ul>
+            <p><strong>Usage:</strong> Try typing in the search box, clicking column headers to sort, switching layouts, and adding new products. Open browser console to see event logs.</p>
+        </div>
+    </div>
+
+    <script type="module" src="SwivelGrid.js"></script>
+    <script src="data.js"></script>
+</body>
+</html>
