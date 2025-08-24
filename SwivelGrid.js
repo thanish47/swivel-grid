@@ -267,6 +267,7 @@ class SwivelGrid extends HTMLElement {
     setData(rows) {
         this._rows = Array.isArray(rows) ? [...rows] : [];
         this.render();
+        this._dispatchEvent('data', { type: 'set', length: this._rows.length });
     }
 
     appendData(rows) {
@@ -283,6 +284,8 @@ class SwivelGrid extends HTMLElement {
             // Otherwise, just append the new rows
             this._renderAppendedRows(rows);
         }
+        
+        this._dispatchEvent('data', { type: 'append', added: rows.length, length: this._rows.length });
     }
 
     destroy() {
@@ -296,6 +299,8 @@ class SwivelGrid extends HTMLElement {
         // Apply initial sorting if specified in schema
         const initialSort = this._schema.find(col => col.sort === 'ASC' || col.sort === 'DESC');
         if (initialSort && this._rows.length > 0) {
+            // Clear other sort flags to ensure only one column is sorted
+            this._schema.forEach(col => { if (col !== initialSort) col.sort = undefined; });
             this._sortData(initialSort.key, initialSort.sort, initialSort.sortComparator);
         }
         
@@ -608,7 +613,10 @@ class SwivelGrid extends HTMLElement {
                                     data-key="${col.key}"
                                     style="${this._getColumnStyles(col)}"
                                     role="columnheader"
-                                    tabindex="0">
+                                    scope="col"
+                                    tabindex="${col.sortable === false ? '-1' : '0'}"
+                                    aria-sort="${col.sort === 'ASC' ? 'ascending' : col.sort === 'DESC' ? 'descending' : 'none'}"
+                                    aria-disabled="${col.sortable === false ? 'true' : 'false'}">
                                     ${this._renderHeaderContent(col)}
                                 </th>
                             `).join('')}
@@ -636,9 +644,9 @@ class SwivelGrid extends HTMLElement {
 
     _renderGrid() {
         return `
-            <div class="grid-container">
+            <div class="grid-container" role="list">
                 ${this._rows.map(row => `
-                    <div class="grid-card">
+                    <div class="grid-card" role="listitem">
                         ${this._renderGridCard(row)}
                     </div>
                 `).join('')}
@@ -652,7 +660,7 @@ class SwivelGrid extends HTMLElement {
         
         let content = '';
         
-        if (imageCol && row[imageCol.key]) {
+        if (imageCol) {
             content += this._renderCellContent(row[imageCol.key], imageCol, true);
         }
 
@@ -690,7 +698,7 @@ class SwivelGrid extends HTMLElement {
         if (value === null || value === undefined) {
             const placeholder = '—';
             return column.cellClass ? 
-                `<span class="${this._escapeHtml(column.cellClass)}">${placeholder}</span>` : 
+                `<span class="${this._sanitizeClassName(column.cellClass)}">${placeholder}</span>` : 
                 placeholder;
         }
 
@@ -709,7 +717,7 @@ class SwivelGrid extends HTMLElement {
 
         // Apply cellClass to default content (but not to special types like rating/image)
         if (column.cellClass && column.type !== 'rating' && column.type !== 'image') {
-            return `<span class="${this._escapeHtml(column.cellClass)}">${content}</span>`;
+            return `<span class="${this._sanitizeClassName(column.cellClass)}">${content}</span>`;
         }
         
         return content;
@@ -744,12 +752,14 @@ class SwivelGrid extends HTMLElement {
             return `<div class="${placeholderClass}" title="No image">📷</div>`;
         }
 
-        return `
-            <img class="${className}" 
-                 src="${this._escapeHtml(image.src)}" 
-                 alt="${this._escapeHtml(image.alt)}"
-                 onerror="this.outerHTML='<div class=&quot;${placeholderClass}&quot; title=&quot;Image failed to load&quot;>📷</div>'" />
-        `;
+        const id = `img-${Math.random().toString(36).slice(2)}`;
+        queueMicrotask(() => {
+            const img = this.shadowRoot?.getElementById(id);
+            if (img) img.addEventListener('error', () => {
+                img.outerHTML = `<div class="${placeholderClass}" title="Image failed to load">📷</div>`;
+            }, { once: true });
+        });
+        return `<img id="${id}" class="${className}" src="${this._escapeHtml(image.src)}" alt="${this._escapeHtml(image.alt)}" />`;
     }
 
     _parseRating(value) {
@@ -793,7 +803,8 @@ class SwivelGrid extends HTMLElement {
     }
 
     _getSortClass(column) {
-        const classes = ['sortable'];
+        const classes = [];
+        if (column.sortable !== false) classes.push('sortable');
         if (column.sort === 'ASC') classes.push('sort-asc');
         if (column.sort === 'DESC') classes.push('sort-desc');
         return classes.join(' ');
@@ -809,13 +820,17 @@ class SwivelGrid extends HTMLElement {
     _attachSortListeners() {
         const headers = this.shadowRoot.querySelectorAll('th[data-key]');
         headers.forEach(header => {
+            const key = header.dataset.key;
+            const col = this._schema.find(c => c.key === key);
+            if (col?.sortable === false) return;
+            
             header.addEventListener('click', (e) => {
-                this._handleSort(e.target.dataset.key);
+                this._handleSort(e.currentTarget.dataset.key);
             });
             header.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
-                    this._handleSort(e.target.dataset.key);
+                    this._handleSort(e.currentTarget.dataset.key);
                 }
             });
         });
@@ -906,7 +921,7 @@ class SwivelGrid extends HTMLElement {
         // Default behavior with optional class application
         const label = this._escapeHtml(column.label);
         if (column.headerClass) {
-            return `<span class="${this._escapeHtml(column.headerClass)}">${label}</span>`;
+            return `<span class="${this._sanitizeClassName(column.headerClass)}">${label}</span>`;
         }
         
         return label;
@@ -951,6 +966,8 @@ class SwivelGrid extends HTMLElement {
         const dangerousPatterns = [
             /<script[^>]*>/gi,
             /javascript:/gi,
+            /vbscript:/gi,
+            /data:/gi,
             /on\w+\s*=/gi,
             /<iframe[^>]*>/gi,
             /<object[^>]*>/gi,
@@ -965,6 +982,10 @@ class SwivelGrid extends HTMLElement {
         }
         
         return template;
+    }
+
+    _sanitizeClassName(s) {
+        return typeof s === 'string' ? s.split(/\s+/).map(t => t.replace(/[^\w-]/g, '')).join(' ') : '';
     }
 
     _processSchema(schema) {
