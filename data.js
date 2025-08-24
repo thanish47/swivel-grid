@@ -161,5 +161,59 @@ window.addEventListener('DOMContentLoaded', () => {
                 }
             });
         }
+
+        // Demo: Toggle classes button
+        const classToggle = document.getElementById('class-toggle');
+        if (classToggle) {
+            let classesEnabled = false;
+            classToggle.addEventListener('click', () => {
+                classesEnabled = !classesEnabled;
+                
+                if (classesEnabled) {
+                    // Enable classes (without templates)
+                    const schemaWithClasses = [
+                        { 
+                            label: "Image", 
+                            key: "image", 
+                            type: "image", 
+                            minWidth: "120px",
+                            headerClass: "header-secondary"
+                        },
+                        { 
+                            label: "Name", 
+                            key: "name", 
+                            minWidth: "180px",
+                            headerClass: "header-primary",
+                            cellClass: "cell-highlight"
+                        },
+                        { 
+                            label: "Price", 
+                            key: "price",
+                            headerClass: "header-secondary", 
+                            cellClass: "cell-success"
+                        },
+                        { 
+                            label: "Rating", 
+                            key: "rating", 
+                            type: "rating", 
+                            sort: "DESC",
+                            headerClass: "header-primary"
+                        }
+                    ];
+                    swivelGrid.schema = schemaWithClasses;
+                    classToggle.textContent = 'Disable Classes';
+                } else {
+                    // Disable classes (back to basic)
+                    const schemaBasic = [
+                        { label: "Image", key: "image", type: "image", minWidth: "120px" },
+                        { label: "Name", key: "name", minWidth: "180px" },
+                        { label: "Price", key: "price" },
+                        { label: "Rating", key: "rating", type: "rating", sort: "DESC" }
+                    ];
+                    swivelGrid.schema = schemaBasic;
+                    classToggle.textContent = 'Enable Classes';
+                }
+            });
+        }
     }
 });
