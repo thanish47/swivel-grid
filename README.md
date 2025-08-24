@@ -225,6 +225,8 @@ interface ColumnDef {
     sortComparator?: (a: any, b: any, rowA: Row, rowB: Row) => number;
     headerTemplate?: string; // Optional custom header HTML template
     cellTemplate?: string;   // Optional custom cell HTML template
+    headerClass?: string;    // Optional CSS classes for header (default rendering only)
+    cellClass?: string;      // Optional CSS classes for cell (default rendering only)
 }
 ```
 
@@ -420,6 +422,135 @@ Templates are automatically sanitized to prevent XSS attacks:
 - Rendering is optimized with template caching
 - Large datasets perform well with simple templates
 - Complex templates may impact performance with 1000+ rows
+
+## CSS Classes
+
+Swivel Grid supports optional CSS classes for default header and cell rendering. Classes are ignored when custom templates are used, providing a lighter-weight styling option.
+
+### Class Properties
+
+```javascript
+{
+    label: "Product Name",
+    key: "name",
+    headerClass: "header-primary text-bold",     // Multiple classes supported
+    cellClass: "cell-highlight important"        // Applied to default content only
+}
+```
+
+### Custom CSS Classes
+
+The component doesn't include any built-in styling for classes - you define your own CSS. Here are some example classes you might implement:
+
+#### Example Header Classes
+```css
+.header-primary {
+    color: #007acc;
+    font-weight: 700;
+    text-transform: uppercase;
+    font-size: 0.9em;
+    letter-spacing: 0.5px;
+}
+
+.header-secondary {
+    color: #6c757d;
+    font-style: italic;
+    font-size: 0.95em;
+}
+```
+
+#### Example Cell Classes
+```css
+.cell-highlight {
+    background: linear-gradient(90deg, #fff3cd 0%, transparent 100%);
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-weight: 600;
+}
+
+.cell-success { color: #28a745; font-weight: 600; }
+.cell-warning { color: #ffc107; font-weight: 600; }
+.cell-danger { color: #dc3545; font-weight: 600; }
+.cell-muted { color: #6c757d; font-style: italic; }
+
+.cell-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.85em;
+    font-weight: 500;
+    background: #e9ecef;
+    color: #495057;
+}
+```
+
+### Usage Examples
+
+#### Basic Class Application
+```javascript
+const schema = [
+    {
+        label: "Status",
+        key: "status",
+        headerClass: "header-primary",
+        cellClass: "cell-badge"
+    },
+    {
+        label: "Revenue",
+        key: "revenue", 
+        headerClass: "header-secondary",
+        cellClass: "cell-success"
+    }
+];
+```
+
+#### Advanced Custom Classes
+```css
+/* Define your own advanced classes */
+.priority-header {
+    background: linear-gradient(45deg, #007acc, #0056b3);
+    color: white;
+    padding: 8px;
+    border-radius: 4px;
+    text-align: center;
+}
+
+.priority-cell {
+    border-left: 4px solid #007acc;
+    padding-left: 8px;
+    font-weight: 500;
+    text-transform: capitalize;
+}
+```
+
+```javascript
+{
+    label: "Priority",
+    key: "priority",
+    headerClass: "priority-header",
+    cellClass: "priority-cell"
+}
+```
+
+**Note**: The demo includes example implementations of these classes. In your own project, define whatever CSS classes suit your design system.
+
+### Classes vs Templates
+
+| Feature | Classes | Templates |
+|---------|---------|-----------|
+| **Complexity** | Simple | Full HTML control |
+| **Performance** | Fast | Slightly slower |
+| **Flexibility** | CSS styling only | Complete customization |
+| **Security** | No XSS risk | Auto-sanitized |
+| **Special Types** | Works with rating/image | Overrides everything |
+
+### Important Notes
+
+- **Template Priority**: If both `cellTemplate` and `cellClass` are provided, only the template is used
+- **Special Types**: Classes apply to text content but not to rating stars or images
+- **Multiple Classes**: Space-separated class names are supported
+- **Inheritance**: Classes work with CSS cascade and inheritance
+- **Performance**: Classes are more performant than templates for simple styling
 
 ## Events
 

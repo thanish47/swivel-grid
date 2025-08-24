@@ -109,6 +109,58 @@
             color: #28a745;
             font-weight: bold;
         }
+
+        /* Demo-specific class styles for swivel-grid */
+        swivel-grid .header-primary {
+            color: #007acc;
+            font-weight: 700;
+            text-transform: uppercase;
+            font-size: 0.9em;
+            letter-spacing: 0.5px;
+        }
+
+        swivel-grid .header-secondary {
+            color: #6c757d;
+            font-style: italic;
+            font-size: 0.95em;
+        }
+
+        swivel-grid .cell-highlight {
+            background: linear-gradient(90deg, #fff3cd 0%, transparent 100%);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: 600;
+        }
+
+        swivel-grid .cell-success {
+            color: #28a745;
+            font-weight: 600;
+        }
+
+        swivel-grid .cell-warning {
+            color: #ffc107;
+            font-weight: 600;
+        }
+
+        swivel-grid .cell-danger {
+            color: #dc3545;
+            font-weight: 600;
+        }
+
+        swivel-grid .cell-muted {
+            color: #6c757d;
+            font-style: italic;
+        }
+
+        swivel-grid .cell-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.85em;
+            font-weight: 500;
+            background: #e9ecef;
+            color: #495057;
+        }
     </style>
 </head>
 <body>
@@ -123,6 +175,7 @@
             <button id="layout-toggle">Switch to Table View</button>
             <button id="add-data">Add Random Product</button>
             <button id="template-toggle">Disable Templates</button>
+            <button id="class-toggle">Enable Classes</button>
         </div>
         
         <swivel-grid></swivel-grid>

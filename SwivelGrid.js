@@ -688,17 +688,31 @@ class SwivelGrid extends HTMLElement {
 
         // Default behavior: fallback to existing logic
         if (value === null || value === undefined) {
-            return '—';
+            const placeholder = '—';
+            return column.cellClass ? 
+                `<span class="${this._escapeHtml(column.cellClass)}">${placeholder}</span>` : 
+                placeholder;
         }
 
+        let content;
         switch (column.type) {
             case 'rating':
-                return this._renderRating(value);
+                content = this._renderRating(value);
+                break;
             case 'image':
-                return this._renderImage(value, isGridImage);
+                content = this._renderImage(value, isGridImage);
+                break;
             default:
-                return this._escapeHtml(String(value));
+                content = this._escapeHtml(String(value));
+                break;
         }
+
+        // Apply cellClass to default content (but not to special types like rating/image)
+        if (column.cellClass && column.type !== 'rating' && column.type !== 'image') {
+            return `<span class="${this._escapeHtml(column.cellClass)}">${content}</span>`;
+        }
+        
+        return content;
     }
 
     _renderRating(value) {
@@ -889,8 +903,13 @@ class SwivelGrid extends HTMLElement {
             });
         }
 
-        // Default behavior: return escaped label
-        return this._escapeHtml(column.label);
+        // Default behavior with optional class application
+        const label = this._escapeHtml(column.label);
+        if (column.headerClass) {
+            return `<span class="${this._escapeHtml(column.headerClass)}">${label}</span>`;
+        }
+        
+        return label;
     }
 
     _renderTemplate(template, context) {
