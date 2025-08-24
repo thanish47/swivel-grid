@@ -1,7 +1,17 @@
 const sampleSchema = [
     { label: "Image", key: "image", type: "image", minWidth: "120px" },
-    { label: "Name", key: "name", minWidth: "180px" },
-    { label: "Price", key: "price" },
+    { 
+        label: "Name", 
+        key: "name", 
+        minWidth: "180px",
+        headerTemplate: '<span style="color: #007acc; font-weight: bold;">📦 {{label}}</span>',
+        cellTemplate: '<div style="display: flex; align-items: center; gap: 8px;"><span style="font-weight: 600; color: #24292f;">{{value}}</span></div>'
+    },
+    { 
+        label: "Price", 
+        key: "price",
+        cellTemplate: '<span style="color: #28a745; font-weight: 600; font-size: 1.1em;">{{value}}</span>'
+    },
     { label: "Rating", key: "rating", type: "rating", sort: "DESC" }
 ];
 
@@ -108,6 +118,47 @@ window.addEventListener('DOMContentLoaded', () => {
                     }
                 ];
                 swivelGrid.appendData(newData);
+            });
+        }
+
+        // Demo: Toggle templates button
+        const templateToggle = document.getElementById('template-toggle');
+        if (templateToggle) {
+            let templatesEnabled = true;
+            templateToggle.addEventListener('click', () => {
+                templatesEnabled = !templatesEnabled;
+                
+                if (templatesEnabled) {
+                    // Enable templates
+                    const schemaWithTemplates = [
+                        { label: "Image", key: "image", type: "image", minWidth: "120px" },
+                        { 
+                            label: "Name", 
+                            key: "name", 
+                            minWidth: "180px",
+                            headerTemplate: '<span style="color: #007acc; font-weight: bold;">📦 {{label}}</span>',
+                            cellTemplate: '<div style="display: flex; align-items: center; gap: 8px;"><span style="font-weight: 600; color: #24292f;">{{value}}</span></div>'
+                        },
+                        { 
+                            label: "Price", 
+                            key: "price",
+                            cellTemplate: '<span style="color: #28a745; font-weight: 600; font-size: 1.1em;">{{value}}</span>'
+                        },
+                        { label: "Rating", key: "rating", type: "rating", sort: "DESC" }
+                    ];
+                    swivelGrid.schema = schemaWithTemplates;
+                    templateToggle.textContent = 'Disable Templates';
+                } else {
+                    // Disable templates
+                    const schemaWithoutTemplates = [
+                        { label: "Image", key: "image", type: "image", minWidth: "120px" },
+                        { label: "Name", key: "name", minWidth: "180px" },
+                        { label: "Price", key: "price" },
+                        { label: "Rating", key: "rating", type: "rating", sort: "DESC" }
+                    ];
+                    swivelGrid.schema = schemaWithoutTemplates;
+                    templateToggle.textContent = 'Enable Templates';
+                }
             });
         }
     }

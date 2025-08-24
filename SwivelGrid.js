@@ -38,7 +38,7 @@ class SwivelGrid extends HTMLElement {
     get schema() { return this._schema; }
     set schema(value) {
         this._propSet.schema = true;
-        this._schema = Array.isArray(value) ? value : [];
+        this._schema = Array.isArray(value) ? this._processSchema(value) : [];
         this.render();
     }
 
@@ -106,7 +106,11 @@ class SwivelGrid extends HTMLElement {
 
     _parseJsonAttribute(property, jsonString) {
         try {
-            this[`_${property}`] = jsonString ? JSON.parse(jsonString) : [];
+            let parsed = jsonString ? JSON.parse(jsonString) : [];
+            if (property === 'schema') {
+                parsed = this._processSchema(parsed);
+            }
+            this[`_${property}`] = parsed;
         } catch (error) {
             console.error(`Invalid JSON in ${property} attribute:`, error);
             this[`_${property}`] = [];
@@ -546,6 +550,11 @@ class SwivelGrid extends HTMLElement {
                 border: 0;
             }
 
+            /* Template container styles */
+            .template-content {
+                display: contents;
+            }
+
             /* Responsive */
             @media (max-width: 768px) {
                 .grid-container {
@@ -600,7 +609,7 @@ class SwivelGrid extends HTMLElement {
                                     style="${this._getColumnStyles(col)}"
                                     role="columnheader"
                                     tabindex="0">
-                                    ${this._escapeHtml(col.label)}
+                                    ${this._renderHeaderContent(col)}
                                 </th>
                             `).join('')}
                         </tr>
@@ -620,7 +629,7 @@ class SwivelGrid extends HTMLElement {
     _renderTableRow(row) {
         return this._schema.map(col => `
             <td style="${this._getColumnStyles(col)}">
-                ${this._renderCellContent(row[col.key], col)}
+                ${this._renderCellContent(row[col.key], col, false, row)}
             </td>
         `).join('');
     }
@@ -655,8 +664,8 @@ class SwivelGrid extends HTMLElement {
                 <section role="group" aria-labelledby="${labelId}">
                     ${otherCols.map((col, index) => `
                         <div class="grid-field">
-                            <span class="grid-field-label" ${index === 0 ? `id="${labelId}"` : ''}>${this._escapeHtml(col.label)}:</span>
-                            <span class="grid-field-value">${this._renderCellContent(row[col.key], col)}</span>
+                            <span class="grid-field-label" ${index === 0 ? `id="${labelId}"` : ''}>${this._renderHeaderContent(col, true)}:</span>
+                            <span class="grid-field-value">${this._renderCellContent(row[col.key], col, false, row)}</span>
                         </div>
                     `).join('')}
                 </section>
@@ -666,7 +675,18 @@ class SwivelGrid extends HTMLElement {
         return content;
     }
 
-    _renderCellContent(value, column, isGridImage = false) {
+    _renderCellContent(value, column, isGridImage = false, row = null) {
+        // Optional: Use custom cell template if provided
+        if (column.cellTemplate) {
+            return this._renderTemplate(column.cellTemplate, {
+                value,
+                row: row || {},
+                column,
+                isGridImage
+            });
+        }
+
+        // Default behavior: fallback to existing logic
         if (value === null || value === undefined) {
             return '—';
         }
@@ -857,6 +877,93 @@ class SwivelGrid extends HTMLElement {
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
+    }
+
+    _renderHeaderContent(column, isGridLabel = false) {
+        // Optional: Use custom header template if provided
+        if (column.headerTemplate) {
+            return this._renderTemplate(column.headerTemplate, {
+                column,
+                label: column.label,
+                isGridLabel
+            });
+        }
+
+        // Default behavior: return escaped label
+        return this._escapeHtml(column.label);
+    }
+
+    _renderTemplate(template, context) {
+        if (typeof template !== 'string') {
+            console.warn('Template must be a string, falling back to default rendering');
+            return context.value ? this._escapeHtml(String(context.value)) : '';
+        }
+
+        try {
+            // Simple template interpolation with context variables
+            return template.replace(/\{\{\s*([^}]+)\s*\}\}/g, (match, expression) => {
+                const keys = expression.trim().split('.');
+                let value = context;
+                
+                // Navigate nested object properties
+                for (const key of keys) {
+                    if (value && typeof value === 'object' && key in value) {
+                        value = value[key];
+                    } else {
+                        return match; // Keep original if property not found
+                    }
+                }
+                
+                // Return escaped HTML for security
+                return value !== null && value !== undefined ? this._escapeHtml(String(value)) : '';
+            });
+        } catch (error) {
+            console.error('Template rendering error:', error);
+            // Fallback to default rendering on error
+            return context.value ? this._escapeHtml(String(context.value)) : '';
+        }
+    }
+
+    _sanitizeTemplate(template) {
+        if (typeof template !== 'string') return null;
+        
+        // Basic template validation - only allow simple interpolation
+        // This prevents script injection while allowing HTML structure
+        const dangerousPatterns = [
+            /<script[^>]*>/gi,
+            /javascript:/gi,
+            /on\w+\s*=/gi,
+            /<iframe[^>]*>/gi,
+            /<object[^>]*>/gi,
+            /<embed[^>]*>/gi
+        ];
+        
+        for (const pattern of dangerousPatterns) {
+            if (pattern.test(template)) {
+                console.warn('Template contains potentially dangerous content, sanitizing');
+                return template.replace(pattern, '');
+            }
+        }
+        
+        return template;
+    }
+
+    _processSchema(schema) {
+        if (!Array.isArray(schema)) return [];
+        
+        return schema.map(col => {
+            const processedCol = { ...col };
+            
+            // Sanitize templates if provided
+            if (processedCol.headerTemplate) {
+                processedCol.headerTemplate = this._sanitizeTemplate(processedCol.headerTemplate);
+            }
+            if (processedCol.cellTemplate) {
+                processedCol.cellTemplate = this._sanitizeTemplate(processedCol.cellTemplate);
+            }
+            
+            return processedCol;
+        });
     }
 }
 

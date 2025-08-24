@@ -22,6 +22,10 @@ Swivel Grid is a native web component built using the Web Components standard, m
 - **Image**: Responsive images with fallback placeholders:
   - URL string: `"https://example.com/image.jpg"`
   - Object: `{ src: "url", alt: "description" }`
+- **Custom Templates**: Optional HTML templates for headers and cells:
+  - Full access to row and column data
+  - Automatic XSS protection
+  - Fallback to default rendering
 
 ### 🔍 **Search & Filtering**
 - **External Input Binding**: Automatically wire to any input element via CSS selector
@@ -219,6 +223,8 @@ interface ColumnDef {
     minWidth?: string;      // CSS width (e.g., "120px")
     maxWidth?: string;      // CSS width (e.g., "300px")
     sortComparator?: (a: any, b: any, rowA: Row, rowB: Row) => number;
+    headerTemplate?: string; // Optional custom header HTML template
+    cellTemplate?: string;   // Optional custom cell HTML template
 }
 ```
 
@@ -267,6 +273,153 @@ grid.schema = [{ label: "Name", key: "name" }];
 grid.rows = [{ name: "Product A" }];
 grid.searchInput = '#my-search';
 ```
+
+## Custom Templates
+
+Swivel Grid supports optional HTML templates for both headers and data cells, providing unlimited customization while maintaining security and performance.
+
+### Template Features
+- **Optional**: Templates are completely optional - without them, columns use default rendering
+- **Secure**: Automatic sanitization prevents XSS attacks 
+- **Context-Aware**: Access to column, row, and value data
+- **Fallback Safe**: Errors fallback to default rendering
+
+### Template Syntax
+
+Templates use simple `{{expression}}` interpolation:
+
+```javascript
+const schema = [
+    {
+        label: "Product Name",
+        key: "name",
+        // Custom header with icon
+        headerTemplate: '<span style="color: #007acc;">📦 {{label}}</span>',
+        // Custom cell with styling
+        cellTemplate: '<strong style="color: #24292f;">{{value}}</strong>'
+    },
+    {
+        label: "Price", 
+        key: "price",
+        // Access nested row data
+        cellTemplate: `
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="color: #28a745; font-weight: 600;">{{value}}</span>
+                {{#if row.discount}}
+                    <small style="color: #dc3545;">{{row.discount}}% off</small>
+                {{/if}}
+            </div>
+        `
+    }
+];
+```
+
+### Template Context
+
+Templates have access to a rich context object:
+
+#### Header Template Context
+```javascript
+{
+    column: ColumnDef,     // Full column definition
+    label: string,         // Column label
+    isGridLabel: boolean   // True when rendering in grid cards
+}
+```
+
+#### Cell Template Context  
+```javascript
+{
+    value: any,           // Cell value for this column
+    row: Row,             // Complete row data object
+    column: ColumnDef,    // Full column definition  
+    isGridImage: boolean  // True when rendering grid image
+}
+```
+
+### Template Examples
+
+#### Basic Styling
+```javascript
+{
+    label: "Status",
+    key: "status", 
+    cellTemplate: `
+        <span class="status status-{{value}}" 
+              style="padding: 4px 8px; border-radius: 4px; font-size: 0.9em;">
+            {{value}}
+        </span>
+    `
+}
+```
+
+#### Complex Layout
+```javascript
+{
+    label: "User Info",
+    key: "user",
+    cellTemplate: `
+        <div style="display: flex; align-items: center; gap: 12px;">
+            <img src="{{row.avatar}}" alt="{{value}}" 
+                 style="width: 32px; height: 32px; border-radius: 50%;" />
+            <div>
+                <div style="font-weight: 600;">{{value}}</div>
+                <div style="font-size: 0.85em; color: #666;">{{row.email}}</div>
+            </div>
+        </div>
+    `
+}
+```
+
+#### Conditional Content
+```javascript
+{
+    label: "Actions",
+    key: "id",
+    headerTemplate: '<span style="text-align: center;">⚙️ Actions</span>',
+    cellTemplate: `
+        <div style="display: flex; gap: 4px;">
+            <button onclick="edit({{value}})" style="padding: 4px 8px; font-size: 0.8em;">
+                Edit
+            </button>
+            <button onclick="delete({{value}})" style="padding: 4px 8px; font-size: 0.8em; color: #dc3545;">
+                Delete  
+            </button>
+        </div>
+    `
+}
+```
+
+#### Progress Bars
+```javascript
+{
+    label: "Progress",
+    key: "completion",
+    cellTemplate: `
+        <div style="display: flex; align-items: center; gap: 8px;">
+            <div style="flex: 1; height: 8px; background: #f1f3f4; border-radius: 4px;">
+                <div style="width: {{value}}%; height: 100%; background: #007acc; border-radius: 4px;"></div>
+            </div>
+            <span style="font-size: 0.85em; color: #666;">{{value}}%</span>
+        </div>
+    `
+}
+```
+
+### Template Security
+
+Templates are automatically sanitized to prevent XSS attacks:
+
+- **Blocked**: `<script>`, `javascript:`, event handlers (`onclick`, etc.)
+- **Allowed**: HTML structure, styling, data interpolation
+- **Safe Fallback**: Malformed templates fallback to default rendering
+
+### Performance Notes
+
+- Templates are processed once during schema setup
+- Rendering is optimized with template caching
+- Large datasets perform well with simple templates
+- Complex templates may impact performance with 1000+ rows
 
 ## Events
 
