@@ -220,6 +220,7 @@ interface ColumnDef {
     key: string;            // Data property key
     type?: 'text' | 'rating' | 'image';
     sort?: 'ASC' | 'DESC';  // Initial sort direction
+    sortable?: boolean;     // Whether column is sortable (default: true)
     minWidth?: string;      // CSS width (e.g., "120px")
     maxWidth?: string;      // CSS width (e.g., "300px")
     sortComparator?: (a: any, b: any, rowA: Row, rowB: Row) => number;
@@ -575,6 +576,11 @@ grid.addEventListener('swivel:scrollUp', (e) => {
 grid.addEventListener('swivel:scrollDown', (e) => {
     const { lastVisibleIndex } = e.detail;
     // Handle scroll down: load next page, infinite scroll, etc.
+});
+
+grid.addEventListener('swivel:data', (e) => {
+    const { type, length, added } = e.detail;
+    // Handle data changes: type='set'|'append', length=total rows, added=new rows (append only)
 });
 ```
 
