@@ -23,9 +23,16 @@ class SwivelGrid extends HTMLElement {
         
         // Property handlers
         this._sortHandler = null;
-        this._scrollUpHandler = null;
-        this._scrollDownHandler = null;
+        this._pageUpHandler = null;
+        this._pageDownHandler = null;
         this._searchHandler = null;
+        
+        // Infinite scroll properties
+        this._pageSize = 100;
+        this._totalPages = null;
+        this._currentPage = 1;
+        this._loading = false;
+        this._loadMoreCallback = null;
         
         // Internal bindings
         this._searchInputListener = null;
@@ -66,11 +73,34 @@ class SwivelGrid extends HTMLElement {
     get sortHandler() { return this._sortHandler; }
     set sortHandler(value) { this._sortHandler = typeof value === 'function' ? value : null; }
 
-    get scrollUpHandler() { return this._scrollUpHandler; }
-    set scrollUpHandler(value) { this._scrollUpHandler = typeof value === 'function' ? value : null; }
+    get pageUpHandler() { return this._pageUpHandler; }
+    set pageUpHandler(value) { this._pageUpHandler = typeof value === 'function' ? value : null; }
 
-    get scrollDownHandler() { return this._scrollDownHandler; }
-    set scrollDownHandler(value) { this._scrollDownHandler = typeof value === 'function' ? value : null; }
+    get pageDownHandler() { return this._pageDownHandler; }
+    set pageDownHandler(value) { this._pageDownHandler = typeof value === 'function' ? value : null; }
+
+    get pageSize() { return this._pageSize; }
+    set pageSize(value) { 
+        this._pageSize = typeof value === 'number' && value > 0 ? value : 100;
+        this._updateCurrentPage();
+    }
+
+    get totalPages() { return this._totalPages; }
+    set totalPages(value) { 
+        this._totalPages = typeof value === 'number' && value > 0 ? value : null;
+    }
+
+    get loading() { return this._loading; }
+    set loading(value) { 
+        this._loading = Boolean(value);
+        this._updateLoadMoreSection();
+    }
+
+    get loadMoreCallback() { return this._loadMoreCallback; }
+    set loadMoreCallback(value) { 
+        this._loadMoreCallback = typeof value === 'function' ? value : null;
+        this._updateLoadMoreSection();
+    }
 
     get searchHandler() { return this._searchHandler; }
     set searchHandler(value) { this._searchHandler = typeof value === 'function' ? value : null; }
@@ -194,26 +224,34 @@ class SwivelGrid extends HTMLElement {
             const scrollHeight = container.scrollHeight;
             const clientHeight = container.clientHeight;
             
-            // More robust scroll index calculation
-            let firstVisibleIndex = 0;
-            let lastVisibleIndex = this._rows.length - 1;
+            // Calculate current scroll position as percentage
+            const scrollPercentage = (scrollTop + clientHeight) / scrollHeight;
+            
+            // Calculate which page we're currently viewing based on visible content
+            const currentViewPage = Math.ceil((scrollTop + clientHeight * 0.5) / (scrollHeight / Math.ceil(this._rows.length / this._pageSize))) || 1;
+            
+            // Check if we've crossed the 80% threshold for page boundaries
+            const pageProgress = ((scrollTop + clientHeight) % (scrollHeight / Math.ceil(this._rows.length / this._pageSize))) / (scrollHeight / Math.ceil(this._rows.length / this._pageSize));
+            
+            // More accurate page calculation based on visible rows
+            let visibleStartIndex = 0;
+            let visibleEndIndex = this._rows.length - 1;
             
             if (this._layoutType === 'table') {
                 const rows = container.querySelectorAll('tbody tr');
                 if (rows.length > 0) {
-                    // Find first and last visible rows based on their position
                     const containerRect = container.getBoundingClientRect();
                     for (let i = 0; i < rows.length; i++) {
                         const rowRect = rows[i].getBoundingClientRect();
                         if (rowRect.bottom > containerRect.top) {
-                            firstVisibleIndex = i;
+                            visibleStartIndex = i;
                             break;
                         }
                     }
                     for (let i = rows.length - 1; i >= 0; i--) {
                         const rowRect = rows[i].getBoundingClientRect();
                         if (rowRect.top < containerRect.bottom) {
-                            lastVisibleIndex = i;
+                            visibleEndIndex = i;
                             break;
                         }
                     }
@@ -225,30 +263,48 @@ class SwivelGrid extends HTMLElement {
                     for (let i = 0; i < cards.length; i++) {
                         const cardRect = cards[i].getBoundingClientRect();
                         if (cardRect.bottom > containerRect.top) {
-                            firstVisibleIndex = i;
+                            visibleStartIndex = i;
                             break;
                         }
                     }
                     for (let i = cards.length - 1; i >= 0; i--) {
                         const cardRect = cards[i].getBoundingClientRect();
                         if (cardRect.top < containerRect.bottom) {
-                            lastVisibleIndex = i;
+                            visibleEndIndex = i;
                             break;
                         }
                     }
                 }
             }
             
-            // Top threshold - exact top or within 24px
-            if (scrollTop <= 24) {
-                this._scrollUpHandler?.({ firstVisibleIndex });
-                this._dispatchEvent('scrollUp', { firstVisibleIndex });
+            // Calculate page based on visible content
+            const visibleMidpoint = Math.floor((visibleStartIndex + visibleEndIndex) / 2);
+            const currentPage = Math.ceil((visibleMidpoint + 1) / this._pageSize);
+            
+            // Check for page changes and 80% threshold
+            if (currentPage !== this._currentPage) {
+                const oldPage = this._currentPage;
+                this._currentPage = currentPage;
+                
+                if (currentPage > oldPage) {
+                    // Scrolling down to next page
+                    this._pageDownHandler?.(currentPage);
+                    this._dispatchEvent('pageDown', { pageNumber: currentPage });
+                } else if (currentPage < oldPage) {
+                    // Scrolling up to previous page  
+                    this._pageUpHandler?.(currentPage);
+                    this._dispatchEvent('pageUp', { pageNumber: currentPage });
+                }
             }
             
-            // Bottom threshold - exact bottom or within 24px
-            if (scrollTop + clientHeight >= scrollHeight - 24) {
-                this._scrollDownHandler?.({ lastVisibleIndex });
-                this._dispatchEvent('scrollDown', { lastVisibleIndex });
+            // Check if we're 80% through the current page for preloading
+            const pageStartIndex = (currentPage - 1) * this._pageSize;
+            const pageEndIndex = Math.min(pageStartIndex + this._pageSize, this._rows.length);
+            const pageProgressPercent = (visibleEndIndex - pageStartIndex) / (pageEndIndex - pageStartIndex);
+            
+            if (pageProgressPercent >= 0.8 && currentPage < Math.ceil(this._rows.length / this._pageSize)) {
+                // Near end of current page, might want to preload next
+                this._dispatchEvent('pageThreshold', { pageNumber: currentPage, threshold: 0.8, nextPage: currentPage + 1 });
             }
             
             this._isScrolling = false;
@@ -266,8 +322,47 @@ class SwivelGrid extends HTMLElement {
     // Public methods
     setData(rows) {
         this._rows = Array.isArray(rows) ? [...rows] : [];
+        this._currentPage = 1;
         this.render();
         this._dispatchEvent('data', { type: 'set', length: this._rows.length });
+    }
+
+    setPageData(data, pageNumber) {
+        if (!Array.isArray(data)) return;
+        
+        if (pageNumber !== undefined && typeof pageNumber === 'number' && pageNumber >= 1) {
+            // Replace specific page data
+            const startIndex = (pageNumber - 1) * this._pageSize;
+            const endIndex = startIndex + this._pageSize;
+            
+            // Ensure array is large enough
+            while (this._rows.length < startIndex) {
+                this._rows.push(null); // Fill gaps with null
+            }
+            
+            // Replace page data
+            this._rows.splice(startIndex, this._pageSize, ...data);
+            
+            this.render();
+            this._dispatchEvent('data', { type: 'page-set', pageNumber, length: this._rows.length });
+        } else {
+            // Append data as new page
+            this._rows.push(...data);
+            this._currentPage = Math.ceil(this._rows.length / this._pageSize);
+            
+            // For performance, try to append efficiently if possible
+            const activeSort = this._schema.find(col => col.sort);
+            if (activeSort) {
+                this._sortData(activeSort.key, activeSort.sort, activeSort.sortComparator);
+                this.render();
+            } else {
+                this._renderAppendedRows(data);
+            }
+            
+            this._dispatchEvent('data', { type: 'page-append', length: this._rows.length });
+        }
+        
+        this._updateCurrentPage();
     }
 
     appendData(rows) {
@@ -310,11 +405,14 @@ class SwivelGrid extends HTMLElement {
             </style>
             <div class="scroll-container">
                 ${this._renderLayout()}
+                ${this._renderLoadMore()}
             </div>
         `;
         
         this._bindScrollListeners();
         this._attachSortListeners();
+        this._bindLoadMoreEvents();
+        this._updateCurrentPage();
     }
 
     _renderAppendedRows(newRows) {
@@ -558,6 +656,51 @@ class SwivelGrid extends HTMLElement {
             /* Template container styles */
             .template-content {
                 display: contents;
+            }
+
+            /* Load more section styles */
+            .load-more-section {
+                padding: 20px;
+                text-align: center;
+                border-top: 1px solid var(--border-color);
+                background: #f8f9fa;
+            }
+
+            .load-more-button {
+                padding: 12px 24px;
+                background: var(--primary-color);
+                color: white;
+                border: none;
+                border-radius: 6px;
+                cursor: pointer;
+                font-size: 14px;
+                font-weight: 500;
+                transition: background-color 0.2s;
+            }
+
+            .load-more-button:hover {
+                background: #0056a3;
+            }
+
+            .load-more-button:disabled {
+                background: #6c757d;
+                cursor: not-allowed;
+            }
+
+            .spinner {
+                display: inline-block;
+                width: 20px;
+                height: 20px;
+                border: 2px solid #f3f3f3;
+                border-top: 2px solid var(--primary-color);
+                border-radius: 50%;
+                animation: spin 1s linear infinite;
+                margin-right: 8px;
+            }
+
+            @keyframes spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
             }
 
             /* Responsive */
@@ -986,6 +1129,52 @@ class SwivelGrid extends HTMLElement {
 
     _sanitizeClassName(s) {
         return typeof s === 'string' ? s.split(/\s+/).map(t => t.replace(/[^\w-]/g, '')).join(' ') : '';
+    }
+
+    _updateCurrentPage() {
+        if (this._rows.length === 0) {
+            this._currentPage = 1;
+        } else {
+            this._currentPage = Math.ceil(this._rows.length / this._pageSize);
+        }
+        this._updateLoadMoreSection();
+    }
+
+    _updateLoadMoreSection() {
+        const loadMoreSection = this.shadowRoot?.querySelector('.load-more-section');
+        if (loadMoreSection) {
+            loadMoreSection.innerHTML = this._getLoadMoreContent();
+            this._bindLoadMoreEvents();
+        }
+    }
+
+    _renderLoadMore() {
+        // Only show load more section if totalPages is set and we haven't reached the end
+        if (this._totalPages && this._currentPage < this._totalPages) {
+            return `<div class="load-more-section">${this._getLoadMoreContent()}</div>`;
+        }
+        return '';
+    }
+
+    _getLoadMoreContent() {
+        if (this._loading) {
+            return '<div class="spinner"></div>Loading more...';
+        }
+        
+        if (this._loadMoreCallback) {
+            return '<button class="load-more-button" id="load-more-btn">Load More</button>';
+        }
+        
+        return '<div style="color: #6c757d;">Scroll to load more content</div>';
+    }
+
+    _bindLoadMoreEvents() {
+        const loadMoreBtn = this.shadowRoot?.getElementById('load-more-btn');
+        if (loadMoreBtn && this._loadMoreCallback) {
+            loadMoreBtn.addEventListener('click', () => {
+                this._loadMoreCallback();
+            });
+        }
     }
 
     _processSchema(schema) {

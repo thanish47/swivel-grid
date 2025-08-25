@@ -229,6 +229,32 @@ interface ColumnDef {
     headerClass?: string;    // Optional CSS classes for header (default rendering only)
     cellClass?: string;      // Optional CSS classes for cell (default rendering only)
 }
+
+interface SwivelGridElement extends HTMLElement {
+    // Existing properties
+    schema: ColumnDef[];
+    rows: Row[];
+    layoutType: 'grid' | 'table';
+    searchInput: string;
+    
+    // Event handlers
+    sortHandler?: (args: { key: string; direction: 'ASC'|'DESC' }) => void;
+    searchHandler?: (query: string) => void;
+    
+    // Infinite scroll properties
+    pageSize: number;        // Items per page (default: 100)
+    totalPages?: number;     // Total pages available (optional)
+    loading: boolean;        // Show loading spinner (default: false)
+    pageUpHandler?: (pageNumber: number) => void;
+    pageDownHandler?: (pageNumber: number) => void;
+    loadMoreCallback?: () => void;
+    
+    // Methods
+    setData(rows: Row[]): void;
+    appendData(rows: Row[]): void;
+    setPageData(data: Row[], pageNumber?: number): void;
+    destroy(): void;
+}
 ```
 
 ### Row Data
@@ -552,6 +578,188 @@ const schema = [
 - **Multiple Classes**: Space-separated class names are supported
 - **Inheritance**: Classes work with CSS cascade and inheritance
 - **Performance**: Classes are more performant than templates for simple styling
+
+## Infinite Scrolling
+
+Swivel Grid includes built-in infinite scrolling functionality with page-based data management, load more controls, and performance optimizations.
+
+### Infinite Scroll Properties
+
+```javascript
+const grid = document.querySelector('swivel-grid');
+
+// Configure pagination
+grid.pageSize = 50;              // Items per page (default: 100)
+grid.totalPages = 20;            // Total pages available (optional)
+grid.loading = false;            // Show/hide loading spinner
+
+// Event handlers
+grid.pageUpHandler = (pageNumber) => {
+    console.log(`User scrolled up to page ${pageNumber}`);
+    // Load previous page data if needed
+};
+
+grid.pageDownHandler = (pageNumber) => {
+    console.log(`User scrolled down to page ${pageNumber}`);
+    // Load next page data
+    fetchPage(pageNumber).then(data => {
+        grid.setPageData(data, pageNumber);
+    });
+};
+
+// Load more button callback
+grid.loadMoreCallback = () => {
+    grid.loading = true;
+    fetchNextPage().then(data => {
+        grid.setPageData(data); // Append as new page
+        grid.loading = false;
+    });
+};
+```
+
+### Page Management
+
+The `setPageData()` method provides flexible page-based data management:
+
+```javascript
+// Replace specific page data (1-based page numbers)
+grid.setPageData(pageData, 3); // Replace page 3 with new data
+
+// Append data as new page (no page number)
+grid.setPageData(newData);      // Adds as next page
+
+// Example: Loading page 2
+const page2Data = [
+    { name: "Item 51", price: "$29.99", rating: 4 },
+    { name: "Item 52", price: "$39.99", rating: 5 },
+    // ... 48 more items for pageSize = 50
+];
+grid.setPageData(page2Data, 2);
+```
+
+### Page Boundary Detection
+
+The component triggers page events when users cross page boundaries:
+
+- **80% Threshold**: Page events fire when 80% through current page
+- **1-based Pages**: Page numbers start from 1
+- **Bidirectional**: Handles both upward and downward scrolling
+
+```javascript
+grid.pageDownHandler = (pageNumber) => {
+    // Triggered at 80% through previous page
+    if (!isPageLoaded(pageNumber)) {
+        loadPage(pageNumber);
+    }
+};
+```
+
+### Load More Section
+
+When `totalPages` is set, a load more section appears at the bottom:
+
+#### Loading States
+```javascript
+// Show spinner
+grid.loading = true;
+
+// Show "Load More" button
+grid.loading = false;
+grid.loadMoreCallback = handleLoadMore;
+
+// Hide section (when all pages loaded)
+grid.totalPages = null;
+```
+
+#### Load More Button
+```javascript
+grid.loadMoreCallback = async () => {
+    try {
+        grid.loading = true;
+        const nextPage = await fetchNextPage();
+        grid.setPageData(nextPage);
+    } catch (error) {
+        console.error('Failed to load more:', error);
+    } finally {
+        grid.loading = false;
+    }
+};
+```
+
+### Performance Optimizations
+
+The infinite scroll implementation is optimized for large datasets:
+
+- **Efficient Page Mapping**: Uses linear array with on-demand page calculation
+- **Smart Rendering**: Only re-renders affected sections when possible
+- **Scroll Throttling**: Uses `requestAnimationFrame` for smooth scrolling
+- **Memory Efficient**: Minimal overhead for page tracking
+
+### Integration Patterns
+
+#### Basic Infinite Scroll
+```javascript
+let currentPage = 1;
+
+grid.pageDownHandler = async (pageNumber) => {
+    if (pageNumber > currentPage) {
+        currentPage = pageNumber;
+        const data = await fetchPage(pageNumber);
+        grid.setPageData(data, pageNumber);
+    }
+};
+```
+
+#### Preloading with Cache
+```javascript
+const pageCache = new Map();
+
+grid.pageDownHandler = async (pageNumber) => {
+    if (!pageCache.has(pageNumber)) {
+        grid.loading = true;
+        const data = await fetchPage(pageNumber);
+        pageCache.set(pageNumber, data);
+        grid.setPageData(data, pageNumber);
+        grid.loading = false;
+    }
+};
+```
+
+#### Server-Side Pagination
+```javascript
+async function handlePageChange(pageNumber) {
+    const response = await fetch(`/api/data?page=${pageNumber}&size=${grid.pageSize}`);
+    const { data, totalPages } = await response.json();
+    
+    grid.totalPages = totalPages;
+    grid.setPageData(data, pageNumber);
+}
+
+grid.pageDownHandler = handlePageChange;
+grid.pageUpHandler = handlePageChange;
+```
+
+### Events
+
+Infinite scrolling adds new custom events:
+
+```javascript
+grid.addEventListener('swivel:pageUp', (e) => {
+    const { pageNumber } = e.detail;
+    console.log('Page up event:', pageNumber);
+});
+
+grid.addEventListener('swivel:pageDown', (e) => {
+    const { pageNumber } = e.detail;
+    console.log('Page down event:', pageNumber);
+});
+
+grid.addEventListener('swivel:pageThreshold', (e) => {
+    const { pageNumber, threshold, nextPage } = e.detail;
+    console.log(`80% through page ${pageNumber}, next: ${nextPage}`);
+    // Preload next page
+});
+```
 
 ## Events
 

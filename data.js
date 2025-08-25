@@ -62,12 +62,53 @@ window.addEventListener('DOMContentLoaded', () => {
             console.log('Sorted by:', key, direction);
         };
 
-        swivelGrid.scrollUpHandler = ({ firstVisibleIndex }) => {
-            console.log('Scrolled up, first visible:', firstVisibleIndex);
+        swivelGrid.pageUpHandler = (pageNumber) => {
+            console.log('Page up to:', pageNumber);
         };
 
-        swivelGrid.scrollDownHandler = ({ lastVisibleIndex }) => {
-            console.log('Scrolled down, last visible:', lastVisibleIndex);
+        swivelGrid.pageDownHandler = (pageNumber) => {
+            console.log('Page down to:', pageNumber);
+            // Simulate loading more data when reaching new pages
+            if (pageNumber > 1) {
+                console.log('Loading page', pageNumber);
+            }
+        };
+
+        // Set pagination properties
+        swivelGrid.pageSize = 3; // Small page size for demo
+        swivelGrid.totalPages = 10; // Demo total pages
+        
+        // Set up load more functionality
+        swivelGrid.loadMoreCallback = () => {
+            console.log('Load more clicked');
+            swivelGrid.loading = true;
+            
+            // Simulate API call
+            setTimeout(() => {
+                const newData = [
+                    {
+                        image: "https://images.unsplash.com/photo-1572635196237-14b3f281503f?w=200&h=200&fit=crop",
+                        name: `Product ${Date.now()}`,
+                        price: `$${(Math.random() * 200 + 50).toFixed(2)}`,
+                        rating: Math.floor(Math.random() * 5) + 1
+                    },
+                    {
+                        image: "https://images.unsplash.com/photo-1560393464-5c69a73c5770?w=200&h=200&fit=crop",
+                        name: `Product ${Date.now() + 1}`,
+                        price: `$${(Math.random() * 200 + 50).toFixed(2)}`,
+                        rating: Math.floor(Math.random() * 5) + 1
+                    },
+                    {
+                        image: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=200&h=200&fit=crop",
+                        name: `Product ${Date.now() + 2}`,
+                        price: `$${(Math.random() * 200 + 50).toFixed(2)}`,
+                        rating: Math.floor(Math.random() * 5) + 1
+                    }
+                ];
+                
+                swivelGrid.setPageData(newData); // Append as new page
+                swivelGrid.loading = false;
+            }, 1500);
         };
 
         swivelGrid.searchHandler = (query) => {
