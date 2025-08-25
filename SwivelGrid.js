@@ -33,6 +33,9 @@ class SwivelGrid extends HTMLElement {
         this._currentPage = 1;
         this._loading = false;
         this._loadMoreCallback = null;
+        this._endReached = false;
+        this._lastTriggeredPage = 0;
+        this._intersectionObserver = null;
         
         // Internal bindings
         this._searchInputListener = null;
@@ -88,6 +91,7 @@ class SwivelGrid extends HTMLElement {
     get totalPages() { return this._totalPages; }
     set totalPages(value) { 
         this._totalPages = typeof value === 'number' && value > 0 ? value : null;
+        this._endReached = false; // Reset end flag when totalPages changes
     }
 
     get loading() { return this._loading; }
@@ -219,24 +223,11 @@ class SwivelGrid extends HTMLElement {
         
         this._isScrolling = true;
         requestAnimationFrame(() => {
-            const container = this._scrollContainer;
-            const scrollTop = container.scrollTop;
-            const scrollHeight = container.scrollHeight;
-            const clientHeight = container.clientHeight;
-            
-            // Calculate current scroll position as percentage
-            const scrollPercentage = (scrollTop + clientHeight) / scrollHeight;
-            
-            // Calculate which page we're currently viewing based on visible content
-            const currentViewPage = Math.ceil((scrollTop + clientHeight * 0.5) / (scrollHeight / Math.ceil(this._rows.length / this._pageSize))) || 1;
-            
-            // Check if we've crossed the 80% threshold for page boundaries
-            const pageProgress = ((scrollTop + clientHeight) % (scrollHeight / Math.ceil(this._rows.length / this._pageSize))) / (scrollHeight / Math.ceil(this._rows.length / this._pageSize));
-            
-            // More accurate page calculation based on visible rows
+            // Get visible row indices using existing robust calculation
             let visibleStartIndex = 0;
-            let visibleEndIndex = this._rows.length - 1;
+            let visibleEndIndex = Math.max(0, this._rows.length - 1);
             
+            const container = this._scrollContainer;
             if (this._layoutType === 'table') {
                 const rows = container.querySelectorAll('tbody tr');
                 if (rows.length > 0) {
@@ -277,35 +268,26 @@ class SwivelGrid extends HTMLElement {
                 }
             }
             
-            // Calculate page based on visible content
+            // Calculate page based purely on visible indices
             const visibleMidpoint = Math.floor((visibleStartIndex + visibleEndIndex) / 2);
-            const currentPage = Math.ceil((visibleMidpoint + 1) / this._pageSize);
+            const currentPage = Math.max(1, Math.ceil((visibleMidpoint + 1) / this._pageSize));
             
-            // Check for page changes and 80% threshold
+            // Check for page changes
             if (currentPage !== this._currentPage) {
                 const oldPage = this._currentPage;
                 this._currentPage = currentPage;
                 
                 if (currentPage > oldPage) {
-                    // Scrolling down to next page
                     this._pageDownHandler?.(currentPage);
                     this._dispatchEvent('pageDown', { pageNumber: currentPage });
                 } else if (currentPage < oldPage) {
-                    // Scrolling up to previous page  
                     this._pageUpHandler?.(currentPage);
                     this._dispatchEvent('pageUp', { pageNumber: currentPage });
                 }
             }
             
-            // Check if we're 80% through the current page for preloading
-            const pageStartIndex = (currentPage - 1) * this._pageSize;
-            const pageEndIndex = Math.min(pageStartIndex + this._pageSize, this._rows.length);
-            const pageProgressPercent = (visibleEndIndex - pageStartIndex) / (pageEndIndex - pageStartIndex);
-            
-            if (pageProgressPercent >= 0.8 && currentPage < Math.ceil(this._rows.length / this._pageSize)) {
-                // Near end of current page, might want to preload next
-                this._dispatchEvent('pageThreshold', { pageNumber: currentPage, threshold: 0.8, nextPage: currentPage + 1 });
-            }
+            // Check 80% threshold for preloading (index-based)
+            this._checkThresholdTrigger(currentPage, visibleEndIndex);
             
             this._isScrolling = false;
         });
@@ -333,11 +315,10 @@ class SwivelGrid extends HTMLElement {
         if (pageNumber !== undefined && typeof pageNumber === 'number' && pageNumber >= 1) {
             // Replace specific page data
             const startIndex = (pageNumber - 1) * this._pageSize;
-            const endIndex = startIndex + this._pageSize;
             
-            // Ensure array is large enough
+            // Fill gaps with empty objects instead of null to prevent render errors
             while (this._rows.length < startIndex) {
-                this._rows.push(null); // Fill gaps with null
+                this._rows.push({}); // Empty object instead of null
             }
             
             // Replace page data
@@ -350,11 +331,19 @@ class SwivelGrid extends HTMLElement {
             this._rows.push(...data);
             this._currentPage = Math.ceil(this._rows.length / this._pageSize);
             
-            // For performance, try to append efficiently if possible
+            // Check if sorting is active - if so, we need to handle page boundaries carefully
             const activeSort = this._schema.find(col => col.sort);
             if (activeSort) {
-                this._sortData(activeSort.key, activeSort.sort, activeSort.sortComparator);
-                this.render();
+                // Don't perform client-side sorting when pagination is active
+                const isPaginationActive = this._totalPages !== null;
+                if (isPaginationActive) {
+                    console.warn('SwivelGrid: Client-side sorting disabled when pagination is active. New page data not sorted locally.');
+                    this._renderAppendedRows(data);
+                } else {
+                    // Only sort when no pagination
+                    this._sortData(activeSort.key, activeSort.sort, activeSort.sortComparator);
+                    this.render();
+                }
             } else {
                 this._renderAppendedRows(data);
             }
@@ -362,6 +351,9 @@ class SwivelGrid extends HTMLElement {
             this._dispatchEvent('data', { type: 'page-append', length: this._rows.length });
         }
         
+        // Reset loading and threshold flags
+        this._loading = false;
+        this._lastTriggeredPage = 0;
         this._updateCurrentPage();
     }
 
@@ -370,11 +362,19 @@ class SwivelGrid extends HTMLElement {
         
         this._rows.push(...rows);
         
-        // If there's an active sort, re-sort and re-render
+        // If there's an active sort, check if we can re-sort
         const activeSort = this._schema.find(col => col.sort);
         if (activeSort) {
-            this._sortData(activeSort.key, activeSort.sort, activeSort.sortComparator);
-            this.render();
+            // Don't perform client-side sorting when pagination is active
+            const isPaginationActive = this._totalPages !== null;
+            if (isPaginationActive) {
+                console.warn('SwivelGrid: Client-side sorting disabled when pagination is active. Appended data not sorted locally.');
+                this._renderAppendedRows(rows);
+            } else {
+                // Only sort when no pagination
+                this._sortData(activeSort.key, activeSort.sort, activeSort.sortComparator);
+                this.render();
+            }
         } else {
             // Otherwise, just append the new rows
             this._renderAppendedRows(rows);
@@ -396,7 +396,14 @@ class SwivelGrid extends HTMLElement {
         if (initialSort && this._rows.length > 0) {
             // Clear other sort flags to ensure only one column is sorted
             this._schema.forEach(col => { if (col !== initialSort) col.sort = undefined; });
-            this._sortData(initialSort.key, initialSort.sort, initialSort.sortComparator);
+            
+            // Only perform initial sort when pagination is not active
+            const isPaginationActive = this._totalPages !== null;
+            if (!isPaginationActive) {
+                this._sortData(initialSort.key, initialSort.sort, initialSort.sortComparator);
+            } else {
+                console.warn('SwivelGrid: Initial client-side sorting disabled when pagination is active. Server should provide pre-sorted data.');
+            }
         }
         
         this.shadowRoot.innerHTML = `
@@ -827,11 +834,16 @@ class SwivelGrid extends HTMLElement {
     }
 
     _renderCellContent(value, column, isGridImage = false, row = null) {
+        // Handle null/empty rows from page gaps
+        if (!row || typeof row !== 'object') {
+            row = {};
+        }
+        
         // Optional: Use custom cell template if provided
         if (column.cellTemplate) {
             return this._renderTemplate(column.cellTemplate, {
                 value,
-                row: row || {},
+                row,
                 column,
                 isGridImage
             });
@@ -992,8 +1004,22 @@ class SwivelGrid extends HTMLElement {
             col.sort = col.key === key ? newDirection : undefined;
         });
 
-        // Sort the data
-        this._sortData(key, newDirection, column.sortComparator);
+        // Check if pagination is active (server-side data)
+        const isPaginationActive = this._totalPages !== null;
+        
+        if (isPaginationActive) {
+            // For server-side pagination, do NOT perform local sorting
+            // This would break page boundaries and cause inconsistent data
+            console.warn('SwivelGrid: Client-side sorting disabled when pagination is active. Sorting should be handled server-side via sortHandler.');
+        } else {
+            // Reset paging when sorting (only for client-side data)
+            this._currentPage = 1;
+            this._lastTriggeredPage = 0;
+            this._endReached = false;
+            
+            // Sort the data (client-side only)
+            this._sortData(key, newDirection, column.sortComparator);
+        }
 
         // Trigger handlers and events
         this._sortHandler?.({ key, direction: newDirection });
@@ -1174,6 +1200,47 @@ class SwivelGrid extends HTMLElement {
             loadMoreBtn.addEventListener('click', () => {
                 this._loadMoreCallback();
             });
+        }
+    }
+
+    _checkThresholdTrigger(currentPage, visibleEndIndex) {
+        // Skip if loading, end reached, or already triggered this page
+        if (this._loading || this._endReached || currentPage === this._lastTriggeredPage) {
+            return;
+        }
+        
+        // Skip if we've reached totalPages
+        if (this._totalPages && currentPage >= this._totalPages) {
+            this._endReached = true;
+            return;
+        }
+        
+        const pageStartIndex = (currentPage - 1) * this._pageSize;
+        const pageEndIndex = Math.min(pageStartIndex + this._pageSize, this._rows.length);
+        const pageSize = pageEndIndex - pageStartIndex;
+        
+        // Guard against division by zero or empty pages
+        if (pageSize <= 0) return;
+        
+        const progressInPage = Math.max(0, visibleEndIndex - pageStartIndex);
+        const pageProgressPercent = Math.min(1, progressInPage / pageSize);
+        
+        if (pageProgressPercent >= 0.8) {
+            this._lastTriggeredPage = currentPage;
+            const nextPage = currentPage + 1;
+            
+            // Dispatch threshold event
+            this._dispatchEvent('pageThreshold', { 
+                pageNumber: currentPage, 
+                threshold: 0.8, 
+                nextPage 
+            });
+            
+            // Auto-prefetch if callback is set
+            if (this._loadMoreCallback && (!this._totalPages || nextPage <= this._totalPages)) {
+                this._loading = true;
+                this._loadMoreCallback();
+            }
         }
     }
 
