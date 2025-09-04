@@ -8,7 +8,7 @@ Swivel Grid is a native web component built using the Web Components standard, m
 
 ## Demo
 You can see **SwivelGrid** in action here:  
-👉 [Live Demo](http://thanish.com/demo/swivel-grid/)
+👉 <a href="http://thanish.com/demo/swivel-grid/" target="_blank" rel="noopener noreferrer">Live Demo</a>
 
 ## Key Features
 
