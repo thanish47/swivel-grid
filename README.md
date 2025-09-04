@@ -6,6 +6,10 @@ A powerful, framework-agnostic web component for displaying data in flexible gri
 
 Swivel Grid is a native web component built using the Web Components standard, making it compatible with vanilla JavaScript, React, Angular, Vue, and any other web framework. It provides a rich data visualization experience with professional styling and enterprise-grade features.
 
+## Demo
+You can see **SwivelGrid** in action here:  
+👉 [Live Demo](http://thanish.com/demo/swivel-grid/)
+
 ## Key Features
 
 ### 🎯 **Dual Layout Support**
