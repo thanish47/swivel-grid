@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SwivelGrid Extension System Test</title>
+</head>
+<body>
+    <h1>SwivelGrid Extension System Test</h1>
+    
+    <!-- Grid container -->
+    <swivel-grid id="testGrid"></swivel-grid>
+    
+    <div style="margin-top: 20px;">
+        <button onclick="testExtensionSystem()">Test Extension System</button>
+        <button onclick="loadTestExtension()">Load Test Extension</button>
+        <button onclick="unloadTestExtension()">Unload Test Extension</button>
+        <div id="output" style="margin-top: 10px; font-family: monospace; background: #f5f5f5; padding: 10px;"></div>
+    </div>
+
+    <!-- Load SwivelGrid and extensions -->
+    <script src="SwivelGrid.js"></script>
+    <script src="extensions/BaseExtension.js"></script>
+    <script src="extensions/ExtensionLoader.js"></script>
+
+    <script>
+        const grid = document.getElementById('testGrid');
+        const output = document.getElementById('output');
+        
+        function log(message) {
+            output.innerHTML += message + '<br>';
+            console.log(message);
+        }
+        
+        function testExtensionSystem() {
+            output.innerHTML = '';
+            log('=== Testing Extension System ===');
+            
+            // Test basic grid functionality
+            grid.schema = [
+                { key: 'id', label: 'ID' },
+                { key: 'name', label: 'Name' },
+                { key: 'status', label: 'Status' }
+            ];
+            
+            grid.rows = [
+                { id: 1, name: 'Test Item 1', status: 'Active' },
+                { id: 2, name: 'Test Item 2', status: 'Inactive' }
+            ];
+            
+            log('Grid data loaded successfully');
+            log(`Extensions registered: ${grid.listExtensions().length}`);
+            log(`Available extension methods: registerExtension, unregisterExtension, getExtension, hasExtension, listExtensions`);
+            
+            // Test extension registration
+            log('✓ Extension system initialized');
+        }
+        
+        function loadTestExtension() {
+            log('=== Loading Test Extension ===');
+            
+            // Create a simple test extension
+            const testExtension = new BaseExtension('test-extension');
+            testExtension.setPriority(10);
+            
+            testExtension.onInitialize = (gridInstance) => {
+                log('Test extension initialized');
+            };
+            
+            testExtension.onBeforeRender = (context) => {
+                log('Test extension: beforeRender hook called');
+                return context;
+            };
+            
+            testExtension.onAfterRender = (context, element) => {
+                log('Test extension: afterRender hook called');
+            };
+            
+            testExtension.onDestroy = () => {
+                log('Test extension destroyed');
+            };
+            
+            const success = grid.registerExtension(testExtension);
+            if (success) {
+                log('✓ Test extension registered successfully');
+                log(`Total extensions: ${grid.listExtensions().length}`);
+                
+                // Trigger a re-render to see hooks in action
+                grid.render();
+            } else {
+                log('✗ Failed to register test extension');
+            }
+        }
+        
+        function unloadTestExtension() {
+            log('=== Unloading Test Extension ===');
+            
+            const success = grid.unregisterExtension('test-extension');
+            if (success) {
+                log('✓ Test extension unregistered successfully');
+                log(`Total extensions: ${grid.listExtensions().length}`);
+            } else {
+                log('✗ Failed to unregister test extension');
+            }
+        }
+        
+        // Initialize the test when page loads
+        window.addEventListener('load', () => {
+            testExtensionSystem();
+        });
+    </script>
+</body>
+</html>

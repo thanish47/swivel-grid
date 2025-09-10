@@ -42,6 +42,13 @@ class SwivelGrid extends HTMLElement {
         this._scrollContainer = null;
         this._isScrolling = false;
         this._onScroll = this._handleScroll.bind(this);
+        
+        // Extension system
+        this._extensions = new Map();
+        this._extensionHooks = {
+            beforeRender: [],
+            afterRender: []
+        };
     }
 
     // Property getters/setters
@@ -109,6 +116,79 @@ class SwivelGrid extends HTMLElement {
     get searchHandler() { return this._searchHandler; }
     set searchHandler(value) { this._searchHandler = typeof value === 'function' ? value : null; }
 
+    // Extension Management
+    registerExtension(extension) {
+        if (!extension || !extension.name) {
+            console.warn('SwivelGrid: Extension must have a name');
+            return false;
+        }
+        
+        if (this._extensions.has(extension.name)) {
+            console.warn(`SwivelGrid: Extension "${extension.name}" already registered`);
+            return false;
+        }
+        
+        this._extensions.set(extension.name, extension);
+        extension.initialize(this);
+        
+        // Add to hooks based on priority
+        this._addToHook('beforeRender', extension);
+        this._addToHook('afterRender', extension);
+        
+        return true;
+    }
+    
+    unregisterExtension(extensionName) {
+        const extension = this._extensions.get(extensionName);
+        if (!extension) return false;
+        
+        extension.destroy();
+        this._extensions.delete(extensionName);
+        
+        // Remove from hooks
+        this._removeFromHook('beforeRender', extension);
+        this._removeFromHook('afterRender', extension);
+        
+        return true;
+    }
+    
+    getExtension(extensionName) {
+        return this._extensions.get(extensionName) || null;
+    }
+    
+    hasExtension(extensionName) {
+        return this._extensions.has(extensionName);
+    }
+    
+    listExtensions() {
+        return Array.from(this._extensions.keys());
+    }
+    
+    _addToHook(hookName, extension) {
+        const hooks = this._extensionHooks[hookName];
+        if (!hooks) return;
+        
+        // Insert in priority order (lower priority numbers first)
+        let insertIndex = hooks.length;
+        for (let i = 0; i < hooks.length; i++) {
+            if (extension.priority < hooks[i].priority) {
+                insertIndex = i;
+                break;
+            }
+        }
+        hooks.splice(insertIndex, 0, extension);
+    }
+    
+    _removeFromHook(hookName, extension) {
+        const hooks = this._extensionHooks[hookName];
+        if (!hooks) return;
+        
+        const index = hooks.indexOf(extension);
+        if (index >= 0) {
+            hooks.splice(index, 1);
+        }
+    }
+
     attributeChangedCallback(name, oldValue, newValue) {
         if (oldValue === newValue) return;
 
@@ -174,6 +254,14 @@ class SwivelGrid extends HTMLElement {
     disconnectedCallback() {
         this._unbindSearchInput();
         this._unbindScrollListeners();
+        
+        // Cleanup extensions
+        for (const extension of this._extensions.values()) {
+            extension.destroy();
+        }
+        this._extensions.clear();
+        this._extensionHooks.beforeRender = [];
+        this._extensionHooks.afterRender = [];
     }
 
     _bindSearchInput() {
@@ -391,6 +479,33 @@ class SwivelGrid extends HTMLElement {
     render() {
         if (!this.shadowRoot) return;
         
+        // Create rendering context for extensions
+        let context = {
+            schema: this._schema,
+            rows: this._rows,
+            layoutType: this._layoutType,
+            searchInput: this._searchInput,
+            loading: this._loading,
+            currentPage: this._currentPage,
+            pageSize: this._pageSize,
+            totalPages: this._totalPages
+        };
+        
+        // Execute beforeRender hooks
+        for (const extension of this._extensionHooks.beforeRender) {
+            if (extension.enabled) {
+                const result = extension.beforeRender(context);
+                if (result) {
+                    context = result;
+                }
+            }
+        }
+        
+        // Update internal state from context (in case extensions modified it)
+        this._schema = context.schema || this._schema;
+        this._rows = context.rows || this._rows;
+        this._layoutType = context.layoutType || this._layoutType;
+        
         // Apply initial sorting if specified in schema
         const initialSort = this._schema.find(col => col.sort === 'ASC' || col.sort === 'DESC');
         if (initialSort && this._rows.length > 0) {
@@ -420,6 +535,14 @@ class SwivelGrid extends HTMLElement {
         this._attachSortListeners();
         this._bindLoadMoreEvents();
         this._updateCurrentPage();
+        
+        // Execute afterRender hooks
+        const renderedElement = this.shadowRoot.querySelector('.scroll-container');
+        for (const extension of this._extensionHooks.afterRender) {
+            if (extension.enabled) {
+                extension.afterRender(context, renderedElement);
+            }
+        }
     }
 
     _renderAppendedRows(newRows) {
