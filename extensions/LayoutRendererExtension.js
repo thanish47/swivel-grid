@@ -201,11 +201,19 @@ class LayoutRendererExtension extends BaseExtension {
     }
 
     /**
-     * Get sort CSS classes for a column
+     * Get sort CSS classes for a column (uses SortingExtension if available)
      * @param {Object} column - Column configuration
      * @returns {string} CSS classes
      */
     getSortClass(column) {
+        // Try to use SortingExtension first
+        const grid = this.getGrid();
+        const sortingExtension = grid?.getExtension('sorting');
+        if (sortingExtension && sortingExtension.enabled) {
+            return sortingExtension.getSortClass(column);
+        }
+        
+        // Fallback implementation
         const classes = [];
         if (column.sortable !== false) classes.push('sortable');
         if (column.sort === 'ASC') classes.push('sort-asc');
