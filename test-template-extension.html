@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TemplateExtension Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 20px; border: 1px solid #ddd; }
+        .controls { margin: 10px 0; }
+        button { margin: 5px; padding: 8px 12px; }
+        #output { margin-top: 10px; font-family: monospace; background: #f5f5f5; padding: 10px; max-height: 400px; overflow-y: auto; }
+        .grid-container { margin: 20px 0; }
+        .status { margin: 10px 0; padding: 10px; background: #e8f4f8; border-radius: 4px; }
+        
+        /* Custom styles for template examples */
+        .badge { 
+            padding: 4px 8px; 
+            border-radius: 12px; 
+            font-size: 12px; 
+            font-weight: bold; 
+            color: white;
+        }
+        .badge-Active { background-color: #28a745; }
+        .badge-Inactive { background-color: #dc3545; }
+        .badge-Pending { background-color: #ffc107; color: black; }
+        
+        .avatar { 
+            width: 32px; 
+            height: 32px; 
+            border-radius: 50%; 
+            object-fit: cover; 
+        }
+        
+        .progress { 
+            width: 100%; 
+            height: 20px; 
+            background-color: #e9ecef; 
+            border-radius: 10px; 
+            overflow: hidden;
+        }
+        .progress-bar { 
+            height: 100%; 
+            background-color: #007bff; 
+            text-align: center; 
+            line-height: 20px; 
+            color: white; 
+            font-size: 12px;
+        }
+        
+        .custom-header {
+            font-weight: bold;
+            color: #007bff;
+            text-transform: uppercase;
+        }
+    </style>
+</head>
+<body>
+    <h1>TemplateExtension Test</h1>
+    
+    <div class="test-section">
+        <h2>Grid with Template Extension</h2>
+        <div class="controls">
+            <button onclick="loadAllExtensions()">Load All Extensions</button>
+            <button onclick="loadTemplatesOnly()">Load Templates Only</button>
+            <button onclick="unloadTemplates()">Unload Templates</button>
+            <button onclick="switchToTable()">Switch to Table</button>
+            <button onclick="switchToGrid()">Switch to Grid</button>
+            <button onclick="testBasicTemplates()">Test Basic Templates</button>
+            <button onclick="testAdvancedTemplates()">Test Advanced Templates</button>
+            <button onclick="testTemplateSecurity()">Test Template Security</button>
+            <button onclick="testTemplateHelpers()">Test Template Helpers</button>
+        </div>
+        <div class="status" id="templateStatus">Template extension not loaded</div>
+        <div class="grid-container">
+            <swivel-grid id="testGrid"></swivel-grid>
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Test Output</h2>
+        <div id="output"></div>
+    </div>
+
+    <!-- Load scripts -->
+    <script src="SwivelGrid.js"></script>
+    <script src="extensions/BaseExtension.js"></script>
+    <script src="extensions/LayoutRendererExtension.js"></script>
+    <script src="extensions/ColumnTypesExtension.js"></script>
+    <script src="extensions/SortingExtension.js"></script>
+    <script src="extensions/SearchExtension.js"></script>
+    <script src="extensions/TemplateExtension.js"></script>
+
+    <script>
+        const grid = document.getElementById('testGrid');
+        const output = document.getElementById('output');
+        const templateStatus = document.getElementById('templateStatus');
+        
+        function log(message) {
+            output.innerHTML += new Date().toLocaleTimeString() + ': ' + message + '<br>';
+            console.log(message);
+            output.scrollTop = output.scrollHeight;
+        }
+        
+        function updateTemplateStatus() {
+            const templateExt = grid.getExtension('templates');
+            if (templateExt && templateExt.enabled) {
+                const gridState = grid.getGridState();
+                const stats = templateExt.getTemplateStats(gridState.schema);
+                templateStatus.innerHTML = `
+                    <strong>Template Extension Active</strong><br>
+                    Total Columns: ${stats.totalColumns}<br>
+                    Header Templates: ${stats.headerTemplates}<br>
+                    Cell Templates: ${stats.cellTemplates}
+                `;
+                templateStatus.style.background = '#d4edda';
+            } else {
+                templateStatus.textContent = 'Template extension not loaded';
+                templateStatus.style.background = '#f8d7da';
+            }
+        }
+        
+        // Initialize grid with template-ready test data
+        function initializeGrid() {
+            const data = [
+                { 
+                    id: 1, 
+                    name: 'Alice Johnson', 
+                    email: 'alice@example.com',
+                    avatar: 'https://via.placeholder.com/64x64/blue/white?text=AJ',
+                    rating: 4.5,
+                    score: 85,
+                    progress: 85,
+                    category: 'Engineering',
+                    status: 'Active',
+                    dateJoined: '2024-01-15',
+                    salary: 75000
+                },
+                { 
+                    id: 2, 
+                    name: 'Bob Smith', 
+                    email: 'bob@example.com',
+                    avatar: 'https://via.placeholder.com/64x64/green/white?text=BS',
+                    rating: { value: 3, max: 5 },
+                    score: 72,
+                    progress: 72,
+                    category: 'Design',
+                    status: 'Inactive',
+                    dateJoined: '2024-02-20',
+                    salary: 68000
+                },
+                { 
+                    id: 3, 
+                    name: 'Carol Davis', 
+                    email: 'carol@example.com',
+                    avatar: 'https://via.placeholder.com/64x64/red/white?text=CD',
+                    rating: '5/5',
+                    score: 95,
+                    progress: 95,
+                    category: 'Marketing',
+                    status: 'Active',
+                    dateJoined: '2024-01-10',
+                    salary: 82000
+                },
+                { 
+                    id: 4, 
+                    name: 'David Wilson', 
+                    email: 'david@example.com',
+                    avatar: 'https://via.placeholder.com/64x64/purple/white?text=DW',
+                    rating: 2,
+                    score: 61,
+                    progress: 61,
+                    category: 'Engineering',
+                    status: 'Pending',
+                    dateJoined: '2024-03-05',
+                    salary: 71000
+                }
+            ];
+            
+            // Start with basic schema (no templates)
+            grid.schema = [
+                { key: 'id', label: 'ID' },
+                { key: 'name', label: 'Name' },
+                { key: 'email', label: 'Email' },
+                { key: 'category', label: 'Category' },
+                { key: 'status', label: 'Status' },
+                { key: 'score', label: 'Score' }
+            ];
+            
+            grid.rows = data;
+            
+            log('Grid initialized with template-ready data');
+            updateTemplateStatus();
+        }
+        
+        function loadAllExtensions() {
+            // Load all extensions
+            if (!grid.hasExtension('layout-renderer')) {
+                grid.registerExtension(new LayoutRendererExtension());
+                log('✓ LayoutRendererExtension loaded');
+            }
+            
+            if (!grid.hasExtension('column-types')) {
+                grid.registerExtension(new ColumnTypesExtension());
+                log('✓ ColumnTypesExtension loaded');
+            }
+            
+            if (!grid.hasExtension('sorting')) {
+                grid.registerExtension(new SortingExtension());
+                log('✓ SortingExtension loaded');
+            }
+            
+            if (!grid.hasExtension('search')) {
+                grid.registerExtension(new SearchExtension());
+                log('✓ SearchExtension loaded');
+            }
+            
+            if (!grid.hasExtension('templates')) {
+                grid.registerExtension(new TemplateExtension());
+                log('✓ TemplateExtension loaded');
+            }
+            
+            log(`Total extensions: ${grid.listExtensions().length}`);
+            grid.render();
+            updateTemplateStatus();
+            log('Grid re-rendered with all extensions');
+        }
+        
+        function loadTemplatesOnly() {
+            // Unload other extensions to test templates independently
+            grid.unregisterExtension('column-types');
+            grid.unregisterExtension('sorting');
+            grid.unregisterExtension('search');
+            
+            if (!grid.hasExtension('templates')) {
+                grid.registerExtension(new TemplateExtension());
+                log('✓ TemplateExtension loaded (standalone)');
+            }
+            
+            grid.render();
+            updateTemplateStatus();
+            log('Grid re-rendered with TemplateExtension only');
+        }
+        
+        function unloadTemplates() {
+            const success = grid.unregisterExtension('templates');
+            if (success) {
+                log('✓ TemplateExtension unloaded');
+                grid.render();
+                updateTemplateStatus();
+                log('Grid re-rendered with fallback template handling');
+            } else {
+                log('✗ Failed to unload TemplateExtension');
+            }
+        }
+        
+        function switchToTable() {
+            grid.layoutType = 'table';
+            log('Switched to table layout');
+        }
+        
+        function switchToGrid() {
+            grid.layoutType = 'grid';
+            log('Switched to grid layout');
+        }
+        
+        function testBasicTemplates() {
+            log('=== Testing Basic Templates ===');
+            
+            // Add templates to schema
+            grid.schema = [
+                { 
+                    key: 'id', 
+                    label: 'ID',
+                    headerTemplate: '<span class="custom-header">{{label}}</span>'
+                },
+                { 
+                    key: 'name', 
+                    label: 'Name',
+                    cellTemplate: '<strong>{{value}}</strong>'
+                },
+                { 
+                    key: 'status', 
+                    label: 'Status',
+                    cellTemplate: '<span class="badge badge-{{value}}">{{value}}</span>'
+                },
+                { 
+                    key: 'progress', 
+                    label: 'Progress',
+                    cellTemplate: '<div class="progress"><div class="progress-bar" style="width: {{value}}%">{{value}}%</div></div>'
+                },
+                { 
+                    key: 'email', 
+                    label: 'Email',
+                    cellTemplate: '<a href="mailto:{{value}}">{{value}}</a>'
+                }
+            ];
+            
+            log('Applied basic templates (header, cell, badge, progress, link)');
+            updateTemplateStatus();
+        }
+        
+        function testAdvancedTemplates() {
+            log('=== Testing Advanced Templates ===');
+            
+            const templateExt = grid.getExtension('templates');
+            if (!templateExt) {
+                log('✗ TemplateExtension not loaded');
+                return;
+            }
+            
+            // Use template creation helpers including new rating and image templates
+            const ratingTemplate = templateExt.createTemplate('rating', {
+                valueField: 'rating',
+                showValue: true
+            });
+            
+            const imageTemplate = templateExt.createTemplate('image', {
+                valueField: 'avatar',
+                isGridImage: false,
+                width: '50px',
+                height: '50px'
+            });
+            
+            const linkTemplate = templateExt.createTemplate('link', {
+                urlField: 'email',
+                textField: 'name'
+            });
+            
+            grid.schema = [
+                { key: 'id', label: 'ID' },
+                { 
+                    key: 'avatar', 
+                    label: 'Avatar',
+                    cellTemplate: imageTemplate
+                },
+                { 
+                    key: 'name', 
+                    label: 'Name',
+                    cellTemplate: linkTemplate
+                },
+                { 
+                    key: 'rating', 
+                    label: 'Rating',
+                    cellTemplate: ratingTemplate
+                },
+                { 
+                    key: 'dateJoined', 
+                    label: 'Date Joined',
+                    cellTemplate: '{{helpers.formatDate value "long"}}'
+                },
+                { 
+                    key: 'salary', 
+                    label: 'Salary',
+                    cellTemplate: '{{helpers.formatCurrency value}}'
+                },
+                { 
+                    key: 'category', 
+                    label: 'Category',
+                    cellTemplate: '{{helpers.capitalize value}}'
+                }
+            ];
+            
+            log('Applied advanced templates (image, rating, link, date, currency, capitalization)');
+            updateTemplateStatus();
+        }
+        
+        function testTemplateSecurity() {
+            log('=== Testing Template Security ===');
+            
+            const templateExt = grid.getExtension('templates');
+            if (!templateExt) {
+                log('✗ TemplateExtension not loaded');
+                return;
+            }
+            
+            // Test dangerous templates
+            const dangerousTemplates = [
+                '<script>alert("XSS")</script>{{value}}',
+                '<img src="x" onerror="alert(\'XSS\')">{{value}}',
+                '<iframe src="javascript:alert(\'XSS\')"></iframe>{{value}}',
+                '{{value}}<form><input type="text"></form>'
+            ];
+            
+            dangerousTemplates.forEach((template, index) => {
+                const validation = templateExt.validateTemplate(template);
+                const sanitized = templateExt.sanitizeTemplate(template);
+                
+                log(`Dangerous template ${index + 1}:`);
+                log(`  Valid: ${validation.isValid}`);
+                log(`  Errors: ${validation.errors.length}`);
+                log(`  Warnings: ${validation.warnings.length}`);
+                log(`  Sanitized: "${sanitized}"`);
+            });
+        }
+        
+        function testTemplateHelpers() {
+            log('=== Testing Template Helpers ===');
+            
+            const templateExt = grid.getExtension('templates');
+            if (!templateExt) {
+                log('✗ TemplateExtension not loaded');
+                return;
+            }
+            
+            // Test helper functions
+            log('Testing date formatting:');
+            log(`  Short: ${templateExt.formatDate('2024-01-15', 'short')}`);
+            log(`  Long: ${templateExt.formatDate('2024-01-15', 'long')}`);
+            log(`  Time: ${templateExt.formatDate('2024-01-15T10:30:00', 'time')}`);
+            
+            log('Testing number formatting:');
+            log(`  Integer: ${templateExt.formatNumber(123.456, 0)}`);
+            log(`  Two decimals: ${templateExt.formatNumber(123.456, 2)}`);
+            
+            log('Testing currency formatting:');
+            log(`  USD: ${templateExt.formatCurrency(75000)}`);
+            log(`  EUR: ${templateExt.formatCurrency(75000, 'EUR')}`);
+            
+            log('Testing text helpers:');
+            log(`  Capitalize: ${templateExt.capitalize('alice johnson')}`);
+            log(`  Truncate: ${templateExt.truncate('This is a very long text that should be truncated', 20)}`);
+        }
+        
+        function testTemplateFeatures() {
+            log('=== Testing Template Extension Features ===');
+            
+            // Load all extensions
+            loadAllExtensions();
+            
+            // Test basic templates
+            setTimeout(() => {
+                testBasicTemplates();
+                
+                setTimeout(() => {
+                    log('Testing table layout with templates...');
+                    switchToTable();
+                    
+                    setTimeout(() => {
+                        log('Testing grid layout with templates...');
+                        switchToGrid();
+                        
+                        setTimeout(() => {
+                            testAdvancedTemplates();
+                            
+                            setTimeout(() => {
+                                testTemplateSecurity();
+                                
+                                setTimeout(() => {
+                                    testTemplateHelpers();
+                                }, 2000);
+                            }, 2000);
+                        }, 2000);
+                    }, 1500);
+                }, 1500);
+            }, 500);
+        }
+        
+        function testFallbackBehavior() {
+            log('=== Testing Fallback Behavior ===');
+            
+            // Test without template extension
+            grid.unregisterExtension('templates');
+            log('TemplateExtension unloaded, testing fallback...');
+            
+            // Add templates to schema
+            grid.schema = [
+                { 
+                    key: 'name', 
+                    label: 'Name',
+                    cellTemplate: '<strong>{{value}}</strong>'
+                },
+                { 
+                    key: 'status', 
+                    label: 'Status',
+                    cellTemplate: '<span class="badge badge-{{value}}">{{value}}</span>'
+                }
+            ];
+            
+            grid.render();
+            updateTemplateStatus();
+            log('Grid rendered with template fallback behavior');
+        }
+        
+        // Initialize when page loads
+        window.addEventListener('load', () => {
+            initializeGrid();
+            
+            // Auto-test after a short delay
+            setTimeout(testTemplateFeatures, 1000);
+            
+            // Add fallback test button
+            setTimeout(() => {
+                const controls = document.querySelector('.controls');
+                const fallbackBtn = document.createElement('button');
+                fallbackBtn.textContent = 'Test Fallback Behavior';
+                fallbackBtn.onclick = testFallbackBehavior;
+                controls.appendChild(fallbackBtn);
+            }, 15000);
+        });
+        
+        // Update template status periodically
+        setInterval(updateTemplateStatus, 3000);
+    </script>
+</body>
+</html>

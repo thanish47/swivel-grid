@@ -1494,6 +1494,13 @@ class SwivelGrid extends HTMLElement {
     _processSchema(schema) {
         if (!Array.isArray(schema)) return [];
         
+        // Try to use TemplateExtension for template processing
+        const templateExtension = this.getExtension('templates');
+        if (templateExtension && templateExtension.enabled) {
+            return templateExtension.processSchemaTemplates(schema);
+        }
+        
+        // Fallback to core implementation
         return schema.map(col => {
             const processedCol = { ...col };
             
