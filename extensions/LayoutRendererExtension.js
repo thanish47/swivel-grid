@@ -184,20 +184,51 @@ class LayoutRendererExtension extends BaseExtension {
     }
 
     /**
-     * Render header content (delegates to grid's implementation for now)
+     * Render header content (uses TemplateExtension if available)
      * @param {Object} column - Column configuration
      * @param {boolean} isGridLabel - Whether this is for grid layout
      * @returns {string} Header content HTML
      */
     renderHeaderContent(column, isGridLabel = false) {
-        // For now, delegate to the grid's implementation
-        // This will be moved to TemplateExtension in Phase 6
+        // Check for custom header template
+        if (column.headerTemplate) {
+            const grid = this.getGrid();
+            const templateExtension = grid?.getExtension('templates');
+            if (templateExtension && templateExtension.enabled) {
+                return templateExtension.renderHeaderTemplate(
+                    column.headerTemplate,
+                    column,
+                    column.label,
+                    isGridLabel
+                );
+            }
+        }
+        
+        // Fallback to grid's implementation
         if (this.grid && this.grid._renderHeaderContent) {
             return this.grid._renderHeaderContent(column, isGridLabel);
         }
         
-        // Fallback for basic label rendering
-        return this.escapeHtml(column.label || column.key);
+        // Basic fallback for label rendering
+        const label = this.escapeHtml(column.label || column.key);
+        if (column.headerClass) {
+            return `<span class="${this.sanitizeClassName(column.headerClass)}">${label}</span>`;
+        }
+        return label;
+    }
+
+    /**
+     * Sanitize CSS class names (delegate to grid or provide fallback)
+     * @param {string} className - Class name to sanitize
+     * @returns {string} Sanitized class name
+     */
+    sanitizeClassName(className) {
+        if (this.grid && this.grid._sanitizeClassName) {
+            return this.grid._sanitizeClassName(className);
+        }
+        
+        // Basic fallback
+        return String(className || '').replace(/[^a-zA-Z0-9_-]/g, '');
     }
 
     /**

@@ -179,14 +179,26 @@ class ColumnTypesExtension extends BaseExtension {
     }
 
     /**
-     * Render template with context (simplified version for now)
+     * Render template with context (uses TemplateExtension if available)
      * @param {string} template - Template string
      * @param {Object} context - Template context
      * @returns {string} Rendered template
      */
     renderTemplate(template, context) {
-        // For now, delegate to the grid's implementation if available
-        // This will be enhanced in Phase 6 (Templates)
+        // Try to use TemplateExtension first
+        const grid = this.getGrid();
+        const templateExtension = grid?.getExtension('templates');
+        if (templateExtension && templateExtension.enabled) {
+            return templateExtension.renderCellTemplate(
+                template, 
+                context.value, 
+                context.column, 
+                context.row, 
+                context.isGridImage
+            );
+        }
+        
+        // Fallback to grid's implementation if available
         if (this.grid && this.grid._renderTemplate) {
             return this.grid._renderTemplate(template, context);
         }
