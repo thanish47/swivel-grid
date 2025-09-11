@@ -189,6 +189,44 @@ class SwivelGrid extends HTMLElement {
         }
     }
 
+    /**
+     * Add CSS to the shadow DOM (for extension styling)
+     * @param {string} css - CSS string
+     * @param {string} id - Unique ID for the style element
+     * @returns {boolean} Success status
+     */
+    addExtensionStyles(css, id) {
+        if (!this.shadowRoot || !css || !id) return false;
+        
+        // Remove existing style with same ID
+        const existing = this.shadowRoot.querySelector(`style[data-extension-id="${id}"]`);
+        if (existing) {
+            existing.remove();
+        }
+        
+        const style = document.createElement('style');
+        style.setAttribute('data-extension-id', id);
+        style.textContent = css;
+        this.shadowRoot.appendChild(style);
+        return true;
+    }
+
+    /**
+     * Remove extension styles
+     * @param {string} id - Extension style ID
+     * @returns {boolean} Success status
+     */
+    removeExtensionStyles(id) {
+        if (!this.shadowRoot || !id) return false;
+        
+        const style = this.shadowRoot.querySelector(`style[data-extension-id="${id}"]`);
+        if (style) {
+            style.remove();
+            return true;
+        }
+        return false;
+    }
+
     attributeChangedCallback(name, oldValue, newValue) {
         if (oldValue === newValue) return;
 

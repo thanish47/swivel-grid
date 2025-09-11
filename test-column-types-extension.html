@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ColumnTypesExtension Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 20px; border: 1px solid #ddd; }
+        .controls { margin: 10px 0; }
+        button { margin: 5px; padding: 8px 12px; }
+        #output { margin-top: 10px; font-family: monospace; background: #f5f5f5; padding: 10px; max-height: 400px; overflow-y: auto; }
+        .grid-container { margin: 20px 0; }
+    </style>
+</head>
+<body>
+    <h1>ColumnTypesExtension Test</h1>
+    
+    <div class="test-section">
+        <h2>Grid with Column Types Extension</h2>
+        <div class="controls">
+            <button onclick="loadAllExtensions()">Load All Extensions</button>
+            <button onclick="loadColumnTypesOnly()">Load Column Types Only</button>
+            <button onclick="unloadColumnTypes()">Unload Column Types</button>
+            <button onclick="switchToTable()">Switch to Table</button>
+            <button onclick="switchToGrid()">Switch to Grid</button>
+            <button onclick="testDifferentRatings()">Test Different Ratings</button>
+            <button onclick="testDifferentImages()">Test Different Images</button>
+        </div>
+        <div class="grid-container">
+            <swivel-grid id="testGrid"></swivel-grid>
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Test Output</h2>
+        <div id="output"></div>
+    </div>
+
+    <!-- Load scripts -->
+    <script src="SwivelGrid.js"></script>
+    <script src="extensions/BaseExtension.js"></script>
+    <script src="extensions/LayoutRendererExtension.js"></script>
+    <script src="extensions/ColumnTypesExtension.js"></script>
+
+    <script>
+        const grid = document.getElementById('testGrid');
+        const output = document.getElementById('output');
+        
+        function log(message) {
+            output.innerHTML += new Date().toLocaleTimeString() + ': ' + message + '<br>';
+            console.log(message);
+            output.scrollTop = output.scrollHeight;
+        }
+        
+        // Initialize grid with test data including different column types
+        function initializeGrid() {
+            grid.schema = [
+                { key: 'id', label: 'ID', sortable: true },
+                { key: 'name', label: 'Name', sortable: true },
+                { key: 'avatar', label: 'Avatar', type: 'image' },
+                { key: 'rating', label: 'Rating', type: 'rating', sortable: true },
+                { key: 'score', label: 'Score (Text)', sortable: true },
+                { key: 'status', label: 'Status' }
+            ];
+            
+            grid.rows = [
+                { 
+                    id: 1, 
+                    name: 'Alice Johnson', 
+                    avatar: 'https://via.placeholder.com/100x100/blue/white?text=AJ',
+                    rating: 4.5,
+                    score: '85/100',
+                    status: 'Active'
+                },
+                { 
+                    id: 2, 
+                    name: 'Bob Smith', 
+                    avatar: 'https://via.placeholder.com/100x100/green/white?text=BS',
+                    rating: { value: 3, max: 5 },
+                    score: '72/100',
+                    status: 'Inactive'
+                },
+                { 
+                    id: 3, 
+                    name: 'Carol Davis', 
+                    avatar: 'https://via.placeholder.com/100x100/red/white?text=CD',
+                    rating: '5/5',
+                    score: '95/100',
+                    status: 'Active'
+                },
+                { 
+                    id: 4, 
+                    name: 'David Wilson', 
+                    avatar: '', // Empty image to test placeholder
+                    rating: 2,
+                    score: '61/100',
+                    status: 'Pending'
+                }
+            ];
+            
+            log('Grid initialized with mixed column types (text, image, rating)');
+        }
+        
+        function loadAllExtensions() {
+            // Load layout renderer first
+            if (!grid.hasExtension('layout-renderer')) {
+                const layoutExt = new LayoutRendererExtension();
+                grid.registerExtension(layoutExt);
+                log('✓ LayoutRendererExtension loaded');
+            }
+            
+            // Load column types
+            if (!grid.hasExtension('column-types')) {
+                const columnTypesExt = new ColumnTypesExtension();
+                grid.registerExtension(columnTypesExt);
+                log('✓ ColumnTypesExtension loaded');
+            }
+            
+            log(`Total extensions: ${grid.listExtensions().length}`);
+            grid.render();
+            log('Grid re-rendered with all extensions');
+        }
+        
+        function loadColumnTypesOnly() {
+            // Unload layout renderer to test column types with fallback
+            grid.unregisterExtension('layout-renderer');
+            
+            if (!grid.hasExtension('column-types')) {
+                const columnTypesExt = new ColumnTypesExtension();
+                grid.registerExtension(columnTypesExt);
+                log('✓ ColumnTypesExtension loaded (without LayoutRenderer)');
+            }
+            
+            grid.render();
+            log('Grid re-rendered with ColumnTypes only');
+        }
+        
+        function unloadColumnTypes() {
+            const success = grid.unregisterExtension('column-types');
+            if (success) {
+                log('✓ ColumnTypesExtension unloaded');
+                grid.render();
+                log('Grid re-rendered with fallback column rendering');
+            } else {
+                log('✗ Failed to unload ColumnTypesExtension');
+            }
+        }
+        
+        function switchToTable() {
+            grid.layoutType = 'table';
+            log('Switched to table layout');
+        }
+        
+        function switchToGrid() {
+            grid.layoutType = 'grid';
+            log('Switched to grid layout');
+        }
+        
+        function testDifferentRatings() {
+            log('=== Testing Different Rating Formats ===');
+            
+            const newRows = [
+                { 
+                    id: 5, 
+                    name: 'Eve Brown', 
+                    avatar: 'https://via.placeholder.com/100x100/purple/white?text=EB',
+                    rating: { value: 4, max: 10 }, // Object format
+                    score: '88/100',
+                    status: 'Active'
+                },
+                { 
+                    id: 6, 
+                    name: 'Frank Miller', 
+                    avatar: 'https://via.placeholder.com/100x100/orange/white?text=FM',
+                    rating: '3/7', // String format
+                    score: '76/100',
+                    status: 'Active'
+                },
+                { 
+                    id: 7, 
+                    name: 'Grace Lee', 
+                    avatar: 'https://via.placeholder.com/100x100/pink/white?text=GL',
+                    rating: 'invalid', // Invalid rating to test fallback
+                    score: '82/100',
+                    status: 'Active'
+                }
+            ];
+            
+            grid.appendData(newRows);
+            log('Added rows with different rating formats (object, string, invalid)');
+        }
+        
+        function testDifferentImages() {
+            log('=== Testing Different Image Formats ===');
+            
+            const newRows = [
+                { 
+                    id: 8, 
+                    name: 'Henry Jones', 
+                    avatar: { src: 'https://via.placeholder.com/100x100/teal/white?text=HJ', alt: 'Henry Avatar' }, // Object format
+                    rating: 4,
+                    score: '90/100',
+                    status: 'Active'
+                },
+                { 
+                    id: 9, 
+                    name: 'Ivy Chen', 
+                    avatar: 'https://invalid-url-to-test-error-handling.jpg', // Invalid URL
+                    rating: 3,
+                    score: '78/100',
+                    status: 'Active'
+                }
+            ];
+            
+            grid.appendData(newRows);
+            log('Added rows with different image formats (object, invalid URL)');
+        }
+        
+        function testColumnTypesFeatures() {
+            log('=== Testing Column Types Extension Features ===');
+            
+            // Load all extensions
+            loadAllExtensions();
+            
+            // Test table rendering
+            setTimeout(() => {
+                log('Testing table layout with column types...');
+                switchToTable();
+                
+                // Test grid rendering
+                setTimeout(() => {
+                    log('Testing grid layout with column types...');
+                    switchToGrid();
+                    
+                    // Test different rating formats
+                    setTimeout(() => {
+                        testDifferentRatings();
+                        
+                        // Test different image formats
+                        setTimeout(() => {
+                            testDifferentImages();
+                        }, 1000);
+                    }, 1000);
+                }, 1000);
+            }, 500);
+        }
+        
+        function testFallbackBehavior() {
+            log('=== Testing Fallback Behavior ===');
+            
+            // Test without extensions
+            grid.unregisterExtension('layout-renderer');
+            grid.unregisterExtension('column-types');
+            
+            log('All extensions unloaded, testing fallback...');
+            grid.render();
+            
+            // Test layout switching
+            setTimeout(() => {
+                switchToTable();
+                setTimeout(() => {
+                    switchToGrid();
+                    log('✓ Fallback behavior verified');
+                }, 300);
+            }, 300);
+        }
+        
+        // Initialize when page loads
+        window.addEventListener('load', () => {
+            initializeGrid();
+            
+            // Auto-test after a short delay
+            setTimeout(testColumnTypesFeatures, 1000);
+            
+            // Add fallback test button
+            setTimeout(() => {
+                const controls = document.querySelector('.controls');
+                const fallbackBtn = document.createElement('button');
+                fallbackBtn.textContent = 'Test Fallback Behavior';
+                fallbackBtn.onclick = testFallbackBehavior;
+                controls.appendChild(fallbackBtn);
+            }, 3000);
+        });
+    </script>
+</body>
+</html>

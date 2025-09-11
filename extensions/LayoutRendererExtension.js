@@ -159,7 +159,7 @@ class LayoutRendererExtension extends BaseExtension {
     }
 
     /**
-     * Render cell content (delegates to grid's implementation for now)
+     * Render cell content (uses ColumnTypesExtension if available)
      * @param {*} value - Cell value
      * @param {Object} column - Column configuration
      * @param {boolean} isGridImage - Whether this is a grid image
@@ -167,13 +167,19 @@ class LayoutRendererExtension extends BaseExtension {
      * @returns {string} Cell content HTML
      */
     renderCellContent(value, column, isGridImage = false, row = null) {
-        // For now, delegate to the grid's implementation
-        // This will be moved to ColumnTypesExtension in Phase 3
+        // Try to use ColumnTypesExtension first
+        const grid = this.getGrid();
+        const columnTypesExtension = grid?.getExtension('column-types');
+        if (columnTypesExtension && columnTypesExtension.enabled) {
+            return columnTypesExtension.renderCellContent(value, column, isGridImage, row);
+        }
+        
+        // Fallback to grid's implementation
         if (this.grid && this.grid._renderCellContent) {
             return this.grid._renderCellContent(value, column, isGridImage, row);
         }
         
-        // Fallback for basic text rendering
+        // Basic fallback for text rendering
         return this.escapeHtml(String(value || ''));
     }
 
