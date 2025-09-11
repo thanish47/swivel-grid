@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SearchExtension Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 20px; border: 1px solid #ddd; }
+        .controls { margin: 10px 0; }
+        button { margin: 5px; padding: 8px 12px; }
+        #output { margin-top: 10px; font-family: monospace; background: #f5f5f5; padding: 10px; max-height: 400px; overflow-y: auto; }
+        .grid-container { margin: 20px 0; }
+        .search-section { margin: 10px 0; padding: 10px; background: #f8f9fa; border-radius: 4px; }
+        .search-input { width: 100%; padding: 8px; margin: 5px 0; border: 1px solid #ddd; border-radius: 4px; }
+        .status { margin: 10px 0; padding: 10px; background: #e8f4f8; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <h1>SearchExtension Test</h1>
+    
+    <div class="test-section">
+        <h2>Search Inputs</h2>
+        <div class="search-section">
+            <label for="search1">Search Input 1:</label>
+            <input type="text" id="search1" class="search-input" placeholder="Search by name, category, or status...">
+        </div>
+        <div class="search-section">
+            <label for="search2">Search Input 2:</label>
+            <input type="text" id="search2" class="search-input" placeholder="Alternative search input...">
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Grid with Search Extension</h2>
+        <div class="controls">
+            <button onclick="loadAllExtensions()">Load All Extensions</button>
+            <button onclick="loadSearchOnly()">Load Search Only</button>
+            <button onclick="unloadSearch()">Unload Search</button>
+            <button onclick="bindToSearch1()">Bind to Search Input 1</button>
+            <button onclick="bindToSearch2()">Bind to Search Input 2</button>
+            <button onclick="testProgrammaticSearch()">Test Programmatic Search</button>
+            <button onclick="testClientSideFilter()">Test Client-Side Filter</button>
+            <button onclick="testDebouncedSearch()">Test Debounced Search</button>
+        </div>
+        <div class="status" id="searchStatus">Search extension not loaded</div>
+        <div class="grid-container">
+            <swivel-grid id="testGrid"></swivel-grid>
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Test Output</h2>
+        <div id="output"></div>
+    </div>
+
+    <!-- Load scripts -->
+    <script src="SwivelGrid.js"></script>
+    <script src="extensions/BaseExtension.js"></script>
+    <script src="extensions/LayoutRendererExtension.js"></script>
+    <script src="extensions/ColumnTypesExtension.js"></script>
+    <script src="extensions/SortingExtension.js"></script>
+    <script src="extensions/SearchExtension.js"></script>
+
+    <script>
+        const grid = document.getElementById('testGrid');
+        const output = document.getElementById('output');
+        const searchStatus = document.getElementById('searchStatus');
+        
+        // Store original data for filtering
+        let originalData = [];
+        
+        function log(message) {
+            output.innerHTML += new Date().toLocaleTimeString() + ': ' + message + '<br>';
+            console.log(message);
+            output.scrollTop = output.scrollHeight;
+        }
+        
+        function updateSearchStatus() {
+            const searchExt = grid.getExtension('search');
+            if (searchExt && searchExt.enabled) {
+                const searchState = searchExt.getSearchState();
+                searchStatus.innerHTML = `
+                    <strong>Search Extension Active</strong><br>
+                    Input Bound: ${searchState.isInputBound ? 'Yes' : 'No'}<br>
+                    Search Input: ${searchState.searchInput || 'None'}<br>
+                    Current Query: "${searchState.currentQuery}"<br>
+                    Has Handler: ${searchState.hasSearchHandler ? 'Yes' : 'No'}
+                `;
+                searchStatus.style.background = '#d4edda';
+            } else {
+                searchStatus.textContent = 'Search extension not loaded';
+                searchStatus.style.background = '#f8d7da';
+            }
+        }
+        
+        // Initialize grid with searchable test data
+        function initializeGrid() {
+            const data = [
+                { 
+                    id: 1, 
+                    name: 'Alice Johnson', 
+                    email: 'alice@example.com',
+                    avatar: 'https://via.placeholder.com/50x50/blue/white?text=AJ',
+                    rating: 4.5,
+                    score: 85,
+                    category: 'Engineering',
+                    status: 'Active'
+                },
+                { 
+                    id: 2, 
+                    name: 'Bob Smith', 
+                    email: 'bob@example.com',
+                    avatar: 'https://via.placeholder.com/50x50/green/white?text=BS',
+                    rating: { value: 3, max: 5 },
+                    score: 72,
+                    category: 'Design',
+                    status: 'Inactive'
+                },
+                { 
+                    id: 3, 
+                    name: 'Carol Davis', 
+                    email: 'carol@example.com',
+                    avatar: 'https://via.placeholder.com/50x50/red/white?text=CD',
+                    rating: '5/5',
+                    score: 95,
+                    category: 'Marketing',
+                    status: 'Active'
+                },
+                { 
+                    id: 4, 
+                    name: 'David Wilson', 
+                    email: 'david@example.com',
+                    avatar: 'https://via.placeholder.com/50x50/purple/white?text=DW',
+                    rating: 2,
+                    score: 61,
+                    category: 'Engineering',
+                    status: 'Pending'
+                },
+                { 
+                    id: 5, 
+                    name: 'Eve Brown', 
+                    email: 'eve@example.com',
+                    avatar: 'https://via.placeholder.com/50x50/orange/white?text=EB',
+                    rating: { value: 4, max: 10 },
+                    score: 88,
+                    category: 'Sales',
+                    status: 'Active'
+                }
+            ];
+            
+            originalData = [...data];
+            
+            grid.schema = [
+                { key: 'id', label: 'ID' },
+                { key: 'name', label: 'Name' },
+                { key: 'email', label: 'Email' },
+                { key: 'avatar', label: 'Avatar', type: 'image' },
+                { key: 'rating', label: 'Rating', type: 'rating' },
+                { key: 'category', label: 'Category' },
+                { key: 'status', label: 'Status' }
+            ];
+            
+            grid.rows = data;
+            
+            // Set up event listeners
+            grid.addEventListener('search', (e) => {
+                log(`Search event: "${e.detail.query}"`);
+                updateSearchStatus();
+            });
+            
+            log('Grid initialized with searchable data');
+            updateSearchStatus();
+        }
+        
+        function loadAllExtensions() {
+            // Load all extensions
+            if (!grid.hasExtension('layout-renderer')) {
+                grid.registerExtension(new LayoutRendererExtension());
+                log('✓ LayoutRendererExtension loaded');
+            }
+            
+            if (!grid.hasExtension('column-types')) {
+                grid.registerExtension(new ColumnTypesExtension());
+                log('✓ ColumnTypesExtension loaded');
+            }
+            
+            if (!grid.hasExtension('sorting')) {
+                grid.registerExtension(new SortingExtension());
+                log('✓ SortingExtension loaded');
+            }
+            
+            if (!grid.hasExtension('search')) {
+                grid.registerExtension(new SearchExtension());
+                log('✓ SearchExtension loaded');
+            }
+            
+            log(`Total extensions: ${grid.listExtensions().length}`);
+            grid.render();
+            updateSearchStatus();
+            log('Grid re-rendered with all extensions');
+        }
+        
+        function loadSearchOnly() {
+            // Unload other extensions to test search independently
+            grid.unregisterExtension('layout-renderer');
+            grid.unregisterExtension('column-types');
+            grid.unregisterExtension('sorting');
+            
+            if (!grid.hasExtension('search')) {
+                grid.registerExtension(new SearchExtension());
+                log('✓ SearchExtension loaded (standalone)');
+            }
+            
+            grid.render();
+            updateSearchStatus();
+            log('Grid re-rendered with SearchExtension only');
+        }
+        
+        function unloadSearch() {
+            const success = grid.unregisterExtension('search');
+            if (success) {
+                log('✓ SearchExtension unloaded');
+                grid.render();
+                updateSearchStatus();
+                log('Grid re-rendered with fallback search handling');
+            } else {
+                log('✗ Failed to unload SearchExtension');
+            }
+        }
+        
+        function bindToSearch1() {
+            const searchExt = grid.getExtension('search');
+            if (!searchExt) {
+                log('✗ SearchExtension not loaded');
+                return;
+            }
+            
+            searchExt.bindSearchInput('#search1');
+            log('Bound to Search Input 1');
+            updateSearchStatus();
+        }
+        
+        function bindToSearch2() {
+            const searchExt = grid.getExtension('search');
+            if (!searchExt) {
+                log('✗ SearchExtension not loaded');
+                return;
+            }
+            
+            searchExt.bindSearchInput('#search2');
+            log('Bound to Search Input 2');
+            updateSearchStatus();
+        }
+        
+        function testProgrammaticSearch() {
+            const searchExt = grid.getExtension('search');
+            if (!searchExt) {
+                log('✗ SearchExtension not loaded');
+                return;
+            }
+            
+            log('=== Testing Programmatic Search ===');
+            
+            // Set search query programmatically
+            searchExt.setSearchQuery('Alice');
+            log('Set search query: "Alice"');
+            
+            setTimeout(() => {
+                searchExt.setSearchQuery('Engineering');
+                log('Set search query: "Engineering"');
+                
+                setTimeout(() => {
+                    searchExt.clearSearch();
+                    log('Cleared search');
+                }, 1500);
+            }, 1500);
+        }
+        
+        function testClientSideFilter() {
+            const searchExt = grid.getExtension('search');
+            if (!searchExt) {
+                log('✗ SearchExtension not loaded');
+                return;
+            }
+            
+            log('=== Testing Client-Side Filtering ===');
+            
+            // Test filtering data
+            const filtered1 = searchExt.filterData(originalData, 'Alice');
+            log(`Filtered for "Alice": ${filtered1.length} results`);
+            
+            const filtered2 = searchExt.filterData(originalData, 'Engineering');
+            log(`Filtered for "Engineering": ${filtered2.length} results`);
+            
+            const filtered3 = searchExt.filterData(originalData, 'Active');
+            log(`Filtered for "Active": ${filtered3.length} results`);
+            
+            // Apply filter to grid
+            grid.rows = searchExt.filterData(originalData, 'Active');
+            log('Applied "Active" filter to grid');
+            
+            setTimeout(() => {
+                grid.rows = originalData;
+                log('Restored original data');
+            }, 3000);
+        }
+        
+        function testDebouncedSearch() {
+            const searchExt = grid.getExtension('search');
+            if (!searchExt) {
+                log('✗ SearchExtension not loaded');
+                return;
+            }
+            
+            log('=== Testing Debounced Search ===');
+            
+            // Set up debounced search
+            searchExt.setupDebouncedSearch((query) => {
+                log(`Debounced search triggered: "${query}"`);
+                
+                // Filter data with debounce
+                const filtered = searchExt.filterData(originalData, query);
+                grid.rows = filtered;
+                log(`Filtered results: ${filtered.length} items`);
+            }, 500);
+            
+            log('Set up debounced search (500ms delay)');
+            log('Type in search input to test debouncing');
+        }
+        
+        function testSearchFeatures() {
+            log('=== Testing Search Extension Features ===');
+            
+            // Load all extensions
+            loadAllExtensions();
+            
+            // Bind to first search input
+            setTimeout(() => {
+                bindToSearch1();
+                
+                setTimeout(() => {
+                    testProgrammaticSearch();
+                    
+                    setTimeout(() => {
+                        testClientSideFilter();
+                    }, 5000);
+                }, 2000);
+            }, 500);
+        }
+        
+        function testFallbackBehavior() {
+            log('=== Testing Fallback Behavior ===');
+            
+            // Test without search extension
+            grid.unregisterExtension('search');
+            log('SearchExtension unloaded, testing fallback...');
+            
+            // Set searchInput via property
+            grid.searchInput = '#search1';
+            log('Set searchInput via property (should use fallback)');
+            updateSearchStatus();
+        }
+        
+        // Set up search handler for demonstration
+        grid.searchHandler = (query) => {
+            log(`Search handler called with: "${query}"`);
+        };
+        
+        // Initialize when page loads
+        window.addEventListener('load', () => {
+            initializeGrid();
+            
+            // Auto-test after a short delay
+            setTimeout(testSearchFeatures, 1000);
+            
+            // Add fallback test button
+            setTimeout(() => {
+                const controls = document.querySelector('.controls');
+                const fallbackBtn = document.createElement('button');
+                fallbackBtn.textContent = 'Test Fallback Behavior';
+                fallbackBtn.onclick = testFallbackBehavior;
+                controls.appendChild(fallbackBtn);
+            }, 10000);
+        });
+        
+        // Update search status periodically
+        setInterval(updateSearchStatus, 3000);
+    </script>
+</body>
+</html>
