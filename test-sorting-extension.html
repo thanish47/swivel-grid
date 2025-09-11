@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SortingExtension Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 20px; border: 1px solid #ddd; }
+        .controls { margin: 10px 0; }
+        button { margin: 5px; padding: 8px 12px; }
+        #output { margin-top: 10px; font-family: monospace; background: #f5f5f5; padding: 10px; max-height: 400px; overflow-y: auto; }
+        .grid-container { margin: 20px 0; }
+        .status { margin: 10px 0; padding: 10px; background: #e8f4f8; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <h1>SortingExtension Test</h1>
+    
+    <div class="test-section">
+        <h2>Grid with Sorting Extension</h2>
+        <div class="controls">
+            <button onclick="loadAllExtensions()">Load All Extensions</button>
+            <button onclick="loadSortingOnly()">Load Sorting Only</button>
+            <button onclick="unloadSorting()">Unload Sorting</button>
+            <button onclick="switchToTable()">Switch to Table</button>
+            <button onclick="switchToGrid()">Switch to Grid</button>
+            <button onclick="testProgrammaticSort()">Test Programmatic Sorting</button>
+            <button onclick="testCustomComparator()">Test Custom Comparator</button>
+            <button onclick="addMoreData()">Add More Data</button>
+        </div>
+        <div class="status" id="sortStatus">Click on column headers to test sorting</div>
+        <div class="grid-container">
+            <swivel-grid id="testGrid"></swivel-grid>
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Test Output</h2>
+        <div id="output"></div>
+    </div>
+
+    <!-- Load scripts -->
+    <script src="SwivelGrid.js"></script>
+    <script src="extensions/BaseExtension.js"></script>
+    <script src="extensions/LayoutRendererExtension.js"></script>
+    <script src="extensions/ColumnTypesExtension.js"></script>
+    <script src="extensions/SortingExtension.js"></script>
+
+    <script>
+        const grid = document.getElementById('testGrid');
+        const output = document.getElementById('output');
+        const sortStatus = document.getElementById('sortStatus');
+        
+        function log(message) {
+            output.innerHTML += new Date().toLocaleTimeString() + ': ' + message + '<br>';
+            console.log(message);
+            output.scrollTop = output.scrollHeight;
+        }
+        
+        function updateSortStatus() {
+            const sortingExt = grid.getExtension('sorting');
+            if (sortingExt && sortingExt.enabled) {
+                const activeSort = sortingExt.getActiveSort();
+                if (activeSort) {
+                    sortStatus.textContent = `Active sort: ${activeSort.label} (${activeSort.sort})`;
+                    sortStatus.style.background = '#d4edda';
+                } else {
+                    sortStatus.textContent = 'No active sort - Click column headers to sort';
+                    sortStatus.style.background = '#e8f4f8';
+                }
+            } else {
+                sortStatus.textContent = 'Sorting extension not loaded';
+                sortStatus.style.background = '#f8d7da';
+            }
+        }
+        
+        // Initialize grid with sortable test data
+        function initializeGrid() {
+            grid.schema = [
+                { key: 'id', label: 'ID', sortable: true },
+                { key: 'name', label: 'Name', sortable: true },
+                { key: 'avatar', label: 'Avatar', type: 'image', sortable: true },
+                { key: 'rating', label: 'Rating', type: 'rating', sortable: true },
+                { key: 'score', label: 'Score', sortable: true },
+                { key: 'category', label: 'Category', sortable: true },
+                { key: 'date', label: 'Date', sortable: true },
+                { key: 'status', label: 'Status', sortable: false } // Non-sortable column
+            ];
+            
+            grid.rows = [
+                { 
+                    id: 1, 
+                    name: 'Alice Johnson', 
+                    avatar: 'https://via.placeholder.com/50x50/blue/white?text=AJ',
+                    rating: 4.5,
+                    score: 85,
+                    category: 'Engineering',
+                    date: '2024-01-15',
+                    status: 'Active'
+                },
+                { 
+                    id: 2, 
+                    name: 'Bob Smith', 
+                    avatar: 'https://via.placeholder.com/50x50/green/white?text=BS',
+                    rating: { value: 3, max: 5 },
+                    score: 72,
+                    category: 'Design',
+                    date: '2024-02-20',
+                    status: 'Inactive'
+                },
+                { 
+                    id: 3, 
+                    name: 'Carol Davis', 
+                    avatar: 'https://via.placeholder.com/50x50/red/white?text=CD',
+                    rating: '5/5',
+                    score: 95,
+                    category: 'Marketing',
+                    date: '2024-01-10',
+                    status: 'Active'
+                },
+                { 
+                    id: 4, 
+                    name: 'David Wilson', 
+                    avatar: 'https://via.placeholder.com/50x50/purple/white?text=DW',
+                    rating: 2,
+                    score: 61,
+                    category: 'Engineering',
+                    date: '2024-03-05',
+                    status: 'Pending'
+                }
+            ];
+            
+            // Set up event listeners
+            grid.addEventListener('sort', (e) => {
+                log(`Sort event: ${e.detail.key} ${e.detail.direction}`);
+                updateSortStatus();
+            });
+            
+            log('Grid initialized with sortable columns');
+            updateSortStatus();
+        }
+        
+        function loadAllExtensions() {
+            // Load all extensions
+            if (!grid.hasExtension('layout-renderer')) {
+                grid.registerExtension(new LayoutRendererExtension());
+                log('✓ LayoutRendererExtension loaded');
+            }
+            
+            if (!grid.hasExtension('column-types')) {
+                grid.registerExtension(new ColumnTypesExtension());
+                log('✓ ColumnTypesExtension loaded');
+            }
+            
+            if (!grid.hasExtension('sorting')) {
+                grid.registerExtension(new SortingExtension());
+                log('✓ SortingExtension loaded');
+            }
+            
+            log(`Total extensions: ${grid.listExtensions().length}`);
+            grid.render();
+            updateSortStatus();
+            log('Grid re-rendered with all extensions');
+        }
+        
+        function loadSortingOnly() {
+            // Unload other extensions to test sorting independently
+            grid.unregisterExtension('layout-renderer');
+            grid.unregisterExtension('column-types');
+            
+            if (!grid.hasExtension('sorting')) {
+                grid.registerExtension(new SortingExtension());
+                log('✓ SortingExtension loaded (standalone)');
+            }
+            
+            grid.render();
+            updateSortStatus();
+            log('Grid re-rendered with SortingExtension only');
+        }
+        
+        function unloadSorting() {
+            const success = grid.unregisterExtension('sorting');
+            if (success) {
+                log('✓ SortingExtension unloaded');
+                grid.render();
+                updateSortStatus();
+                log('Grid re-rendered with fallback sorting');
+            } else {
+                log('✗ Failed to unload SortingExtension');
+            }
+        }
+        
+        function switchToTable() {
+            grid.layoutType = 'table';
+            log('Switched to table layout');
+        }
+        
+        function switchToGrid() {
+            grid.layoutType = 'grid';
+            log('Switched to grid layout');
+        }
+        
+        function testProgrammaticSort() {
+            const sortingExt = grid.getExtension('sorting');
+            if (!sortingExt) {
+                log('✗ SortingExtension not loaded');
+                return;
+            }
+            
+            log('=== Testing Programmatic Sorting ===');
+            
+            // Sort by name ASC
+            sortingExt.setSortColumn('name', 'ASC');
+            log('Set sort: Name ASC');
+            updateSortStatus();
+            
+            setTimeout(() => {
+                // Sort by score DESC
+                sortingExt.setSortColumn('score', 'DESC');
+                log('Set sort: Score DESC');
+                updateSortStatus();
+                
+                setTimeout(() => {
+                    // Clear sort
+                    sortingExt.clearSort();
+                    log('Cleared all sorts');
+                    updateSortStatus();
+                }, 1500);
+            }, 1500);
+        }
+        
+        function testCustomComparator() {
+            log('=== Testing Custom Comparator ===');
+            
+            // Add custom comparator to category column
+            const categoryCol = grid.schema.find(col => col.key === 'category');
+            if (categoryCol) {
+                categoryCol.sortComparator = (a, b, rowA, rowB) => {
+                    // Custom sort: Engineering first, then alphabetical
+                    if (a === 'Engineering' && b !== 'Engineering') return -1;
+                    if (b === 'Engineering' && a !== 'Engineering') return 1;
+                    return a.localeCompare(b);
+                };
+                
+                log('Added custom comparator to Category column (Engineering first)');
+                
+                // Sort by category to test custom comparator
+                const sortingExt = grid.getExtension('sorting');
+                if (sortingExt) {
+                    sortingExt.setSortColumn('category', 'ASC');
+                    log('Sorted by Category with custom comparator');
+                    updateSortStatus();
+                }
+            }
+        }
+        
+        function addMoreData() {
+            const newRows = [
+                { 
+                    id: 5, 
+                    name: 'Eve Brown', 
+                    avatar: 'https://via.placeholder.com/50x50/orange/white?text=EB',
+                    rating: { value: 4, max: 10 },
+                    score: 88,
+                    category: 'Sales',
+                    date: '2024-02-28',
+                    status: 'Active'
+                },
+                { 
+                    id: 6, 
+                    name: 'Frank Miller', 
+                    avatar: 'https://via.placeholder.com/50x50/teal/white?text=FM',
+                    rating: '1/5',
+                    score: 45,
+                    category: 'Engineering',
+                    date: '2024-01-05',
+                    status: 'Inactive'
+                }
+            ];
+            
+            grid.appendData(newRows);
+            log('Added 2 new rows via appendData()');
+            updateSortStatus();
+        }
+        
+        function testSortingFeatures() {
+            log('=== Testing Sorting Extension Features ===');
+            
+            // Load all extensions
+            loadAllExtensions();
+            
+            // Test table layout
+            setTimeout(() => {
+                log('Testing table layout sorting...');
+                switchToTable();
+                
+                setTimeout(() => {
+                    log('Testing grid layout sorting...');
+                    switchToGrid();
+                    
+                    setTimeout(() => {
+                        testProgrammaticSort();
+                        
+                        setTimeout(() => {
+                            testCustomComparator();
+                        }, 5000);
+                    }, 2000);
+                }, 1500);
+            }, 500);
+        }
+        
+        function testFallbackBehavior() {
+            log('=== Testing Fallback Behavior ===');
+            
+            // Test without sorting extension
+            grid.unregisterExtension('sorting');
+            log('SortingExtension unloaded, testing fallback...');
+            grid.render();
+            updateSortStatus();
+            
+            // Test that basic clicking still works (should use core implementation)
+            log('Click on column headers to test fallback sorting');
+        }
+        
+        // Initialize when page loads
+        window.addEventListener('load', () => {
+            initializeGrid();
+            
+            // Auto-test after a short delay
+            setTimeout(testSortingFeatures, 1000);
+            
+            // Add fallback test button
+            setTimeout(() => {
+                const controls = document.querySelector('.controls');
+                const fallbackBtn = document.createElement('button');
+                fallbackBtn.textContent = 'Test Fallback Behavior';
+                fallbackBtn.onclick = testFallbackBehavior;
+                controls.appendChild(fallbackBtn);
+            }, 8000);
+        });
+        
+        // Update sort status periodically
+        setInterval(updateSortStatus, 2000);
+    </script>
+</body>
+</html>

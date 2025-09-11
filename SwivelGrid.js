@@ -466,9 +466,16 @@ class SwivelGrid extends HTMLElement {
                     console.warn('SwivelGrid: Client-side sorting disabled when pagination is active. New page data not sorted locally.');
                     this._renderAppendedRows(data);
                 } else {
-                    // Only sort when no pagination
-                    this._sortData(activeSort.key, activeSort.sort, activeSort.sortComparator);
-                    this.render();
+                    // Try to use SortingExtension first
+                    const sortingExtension = this.getExtension('sorting');
+                    if (sortingExtension && sortingExtension.enabled) {
+                        sortingExtension.sortData(activeSort.key, activeSort.sort, activeSort.sortComparator);
+                        this.render();
+                    } else {
+                        // Fallback to core implementation
+                        this._sortData(activeSort.key, activeSort.sort, activeSort.sortComparator);
+                        this.render();
+                    }
                 }
             } else {
                 this._renderAppendedRows(data);
@@ -497,9 +504,16 @@ class SwivelGrid extends HTMLElement {
                 console.warn('SwivelGrid: Client-side sorting disabled when pagination is active. Appended data not sorted locally.');
                 this._renderAppendedRows(rows);
             } else {
-                // Only sort when no pagination
-                this._sortData(activeSort.key, activeSort.sort, activeSort.sortComparator);
-                this.render();
+                // Try to use SortingExtension first
+                const sortingExtension = this.getExtension('sorting');
+                if (sortingExtension && sortingExtension.enabled) {
+                    sortingExtension.sortData(activeSort.key, activeSort.sort, activeSort.sortComparator);
+                    this.render();
+                } else {
+                    // Fallback to core implementation
+                    this._sortData(activeSort.key, activeSort.sort, activeSort.sortComparator);
+                    this.render();
+                }
             }
         } else {
             // Otherwise, just append the new rows
@@ -544,20 +558,7 @@ class SwivelGrid extends HTMLElement {
         this._rows = context.rows || this._rows;
         this._layoutType = context.layoutType || this._layoutType;
         
-        // Apply initial sorting if specified in schema
-        const initialSort = this._schema.find(col => col.sort === 'ASC' || col.sort === 'DESC');
-        if (initialSort && this._rows.length > 0) {
-            // Clear other sort flags to ensure only one column is sorted
-            this._schema.forEach(col => { if (col !== initialSort) col.sort = undefined; });
-            
-            // Only perform initial sort when pagination is not active
-            const isPaginationActive = this._totalPages !== null;
-            if (!isPaginationActive) {
-                this._sortData(initialSort.key, initialSort.sort, initialSort.sortComparator);
-            } else {
-                console.warn('SwivelGrid: Initial client-side sorting disabled when pagination is active. Server should provide pre-sorted data.');
-            }
-        }
+        // Note: Initial sorting is now handled by SortingExtension in beforeRender hook
         
         this.shadowRoot.innerHTML = `
             <style>
@@ -570,7 +571,14 @@ class SwivelGrid extends HTMLElement {
         `;
         
         this._bindScrollListeners();
-        this._attachSortListeners();
+        
+        // Sort listeners are now handled by SortingExtension in afterRender hook
+        // Fallback for when SortingExtension is not loaded
+        const sortingExtension = this.getExtension('sorting');
+        if (!sortingExtension || !sortingExtension.enabled) {
+            this._attachSortListeners();
+        }
+        
         this._bindLoadMoreEvents();
         this._updateCurrentPage();
         
