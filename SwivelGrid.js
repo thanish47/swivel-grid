@@ -78,7 +78,15 @@ class SwivelGrid extends HTMLElement {
         this._propSet.searchInput = true;
         this._unbindSearchInput(); // unbind from old selector before it changes
         this._searchInput = value || null;
-        this._bindSearchInput();
+        
+        // Try to use SearchExtension first
+        const searchExtension = this.getExtension('search');
+        if (searchExtension && searchExtension.enabled) {
+            searchExtension.bindSearchInput(value);
+        } else {
+            // Fallback to core implementation
+            this._bindSearchInput();
+        }
     }
 
     get sortHandler() { return this._sortHandler; }
@@ -228,6 +236,55 @@ class SwivelGrid extends HTMLElement {
         return false;
     }
 
+    /**
+     * Add event listener to grid with automatic cleanup
+     * @param {string} eventName - Event name
+     * @param {Function} handler - Event handler
+     * @param {string} extensionName - Extension name for cleanup
+     * @returns {Function} Cleanup function
+     */
+    addExtensionEventListener(eventName, handler, extensionName) {
+        if (!this._extensionEventListeners) {
+            this._extensionEventListeners = new Map();
+        }
+        
+        if (!this._extensionEventListeners.has(extensionName)) {
+            this._extensionEventListeners.set(extensionName, []);
+        }
+        
+        const wrappedHandler = (event) => {
+            try {
+                handler(event);
+            } catch (error) {
+                console.error(`Extension ${extensionName} event handler error:`, error);
+            }
+        };
+        
+        this.addEventListener(eventName, wrappedHandler);
+        this._extensionEventListeners.get(extensionName).push({
+            eventName,
+            handler: wrappedHandler
+        });
+        
+        return () => this.removeEventListener(eventName, wrappedHandler);
+    }
+
+    /**
+     * Clean up all event listeners for an extension
+     * @param {string} extensionName - Extension name
+     */
+    cleanupExtensionEventListeners(extensionName) {
+        if (!this._extensionEventListeners) return;
+        
+        const listeners = this._extensionEventListeners.get(extensionName);
+        if (listeners) {
+            listeners.forEach(({ eventName, handler }) => {
+                this.removeEventListener(eventName, handler);
+            });
+            this._extensionEventListeners.delete(extensionName);
+        }
+    }
+
     attributeChangedCallback(name, oldValue, newValue) {
         if (oldValue === newValue) return;
 
@@ -251,7 +308,14 @@ class SwivelGrid extends HTMLElement {
                 break;
             case 'search-input':
                 this._searchInput = newValue;
-                this._bindSearchInput();
+                // Try to use SearchExtension first
+                const searchExtension = this.getExtension('search');
+                if (searchExtension && searchExtension.enabled) {
+                    searchExtension.bindSearchInput(newValue);
+                } else {
+                    // Fallback to core implementation
+                    this._bindSearchInput();
+                }
                 break;
         }
         this.render();
@@ -287,7 +351,13 @@ class SwivelGrid extends HTMLElement {
         }
         
         this.render();
-        this._bindSearchInput();
+        
+        // Search input binding is now handled by SearchExtension
+        // Fallback for when SearchExtension is not loaded
+        const searchExtension = this.getExtension('search');
+        if (!searchExtension || !searchExtension.enabled) {
+            this._bindSearchInput();
+        }
     }
 
     disconnectedCallback() {
