@@ -526,7 +526,7 @@ class SwivelGrid extends HTMLElement {
                 ${this._getStyles()}
             </style>
             <div class="scroll-container">
-                ${this._renderLayout()}
+                ${context.layoutHTML || this._renderLayout()}
                 ${this._renderLoadMore()}
             </div>
         `;
@@ -546,6 +546,14 @@ class SwivelGrid extends HTMLElement {
     }
 
     _renderAppendedRows(newRows) {
+        // Try to use layout extension first
+        const layoutExtension = this.getExtension('layout-renderer');
+        if (layoutExtension && layoutExtension.enabled) {
+            layoutExtension.renderAppendedRows(newRows, this._layoutType, this._schema);
+            return;
+        }
+        
+        // Fallback to core implementation
         if (this._layoutType === 'table') {
             const tbody = this.shadowRoot.querySelector('tbody');
             if (tbody) {

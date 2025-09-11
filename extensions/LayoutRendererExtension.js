@@ -1,0 +1,269 @@
+/**
+ * LayoutRendererExtension for SwivelGrid
+ * Handles table and grid layout rendering
+ * Extracted from core SwivelGrid to support modular architecture
+ */
+class LayoutRendererExtension extends BaseExtension {
+    constructor() {
+        super('layout-renderer');
+        this.priority = 10; // Core rendering should have high priority
+    }
+
+    onInitialize(gridInstance) {
+        // Store reference to grid for accessing internal methods
+        this.grid = gridInstance;
+    }
+
+    onBeforeRender(context) {
+        // Inject layout rendering into the context
+        if (context.schema && context.rows) {
+            context.layoutHTML = this.renderLayout(context);
+        }
+        return context;
+    }
+
+    /**
+     * Main layout rendering dispatcher
+     * @param {Object} context - Rendering context
+     * @returns {string} HTML string for the layout
+     */
+    renderLayout(context) {
+        const { schema, rows, layoutType } = context;
+        
+        if (!schema.length || !rows.length) {
+            return this.renderEmptyState();
+        }
+
+        return layoutType === 'table' 
+            ? this.renderTable(context)
+            : this.renderGrid(context);
+    }
+
+    /**
+     * Render empty state when no data is available
+     * @returns {string} Empty state HTML
+     */
+    renderEmptyState() {
+        return `
+            <div class="empty-state">
+                <h3>No data available</h3>
+                <p>Add schema and rows to display content.</p>
+            </div>
+        `;
+    }
+
+    /**
+     * Render table layout
+     * @param {Object} context - Rendering context
+     * @returns {string} Table HTML
+     */
+    renderTable(context) {
+        const { schema, rows } = context;
+        
+        return `
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            ${schema.map(col => `
+                                <th class="${this.getSortClass(col)}" 
+                                    data-key="${col.key}"
+                                    style="${this.getColumnStyles(col)}"
+                                    role="columnheader"
+                                    scope="col"
+                                    tabindex="${col.sortable === false ? '-1' : '0'}"
+                                    aria-sort="${col.sort === 'ASC' ? 'ascending' : col.sort === 'DESC' ? 'descending' : 'none'}"
+                                    aria-disabled="${col.sortable === false ? 'true' : 'false'}">
+                                    ${this.renderHeaderContent(col)}
+                                </th>
+                            `).join('')}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${rows.map(row => `
+                            <tr>
+                                ${this.renderTableRow(row, schema)}
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
+        `;
+    }
+
+    /**
+     * Render a single table row
+     * @param {Object} row - Row data
+     * @param {Array} schema - Column schema
+     * @returns {string} Table row HTML
+     */
+    renderTableRow(row, schema) {
+        return schema.map(col => `
+            <td style="${this.getColumnStyles(col)}">
+                ${this.renderCellContent(row[col.key], col, false, row)}
+            </td>
+        `).join('');
+    }
+
+    /**
+     * Render grid layout
+     * @param {Object} context - Rendering context
+     * @returns {string} Grid HTML
+     */
+    renderGrid(context) {
+        const { schema, rows } = context;
+        
+        return `
+            <div class="grid-container" role="list">
+                ${rows.map(row => `
+                    <div class="grid-card" role="listitem">
+                        ${this.renderGridCard(row, schema)}
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    }
+
+    /**
+     * Render a single grid card
+     * @param {Object} row - Row data
+     * @param {Array} schema - Column schema
+     * @returns {string} Grid card HTML
+     */
+    renderGridCard(row, schema) {
+        const imageCol = schema.find(col => col.type === 'image');
+        const otherCols = schema.filter(col => col.type !== 'image');
+        
+        let content = '';
+        
+        if (imageCol) {
+            content += this.renderCellContent(row[imageCol.key], imageCol, true);
+        }
+
+        if (otherCols.length) {
+            const labelId = `label-${Math.random().toString(36).substr(2, 9)}`;
+            
+            content += `
+                <section role="group" aria-labelledby="${labelId}">
+                    ${otherCols.map((col, index) => `
+                        <div class="grid-field">
+                            <span class="grid-field-label" ${index === 0 ? `id="${labelId}"` : ''}>${this.renderHeaderContent(col, true)}:</span>
+                            <span class="grid-field-value">${this.renderCellContent(row[col.key], col, false, row)}</span>
+                        </div>
+                    `).join('')}
+                </section>
+            `;
+        }
+
+        return content;
+    }
+
+    /**
+     * Render cell content (delegates to grid's implementation for now)
+     * @param {*} value - Cell value
+     * @param {Object} column - Column configuration
+     * @param {boolean} isGridImage - Whether this is a grid image
+     * @param {Object} row - Row data
+     * @returns {string} Cell content HTML
+     */
+    renderCellContent(value, column, isGridImage = false, row = null) {
+        // For now, delegate to the grid's implementation
+        // This will be moved to ColumnTypesExtension in Phase 3
+        if (this.grid && this.grid._renderCellContent) {
+            return this.grid._renderCellContent(value, column, isGridImage, row);
+        }
+        
+        // Fallback for basic text rendering
+        return this.escapeHtml(String(value || ''));
+    }
+
+    /**
+     * Render header content (delegates to grid's implementation for now)
+     * @param {Object} column - Column configuration
+     * @param {boolean} isGridLabel - Whether this is for grid layout
+     * @returns {string} Header content HTML
+     */
+    renderHeaderContent(column, isGridLabel = false) {
+        // For now, delegate to the grid's implementation
+        // This will be moved to TemplateExtension in Phase 6
+        if (this.grid && this.grid._renderHeaderContent) {
+            return this.grid._renderHeaderContent(column, isGridLabel);
+        }
+        
+        // Fallback for basic label rendering
+        return this.escapeHtml(column.label || column.key);
+    }
+
+    /**
+     * Get sort CSS classes for a column
+     * @param {Object} column - Column configuration
+     * @returns {string} CSS classes
+     */
+    getSortClass(column) {
+        const classes = [];
+        if (column.sortable !== false) classes.push('sortable');
+        if (column.sort === 'ASC') classes.push('sort-asc');
+        if (column.sort === 'DESC') classes.push('sort-desc');
+        return classes.join(' ');
+    }
+
+    /**
+     * Get column styles
+     * @param {Object} column - Column configuration
+     * @returns {string} CSS styles
+     */
+    getColumnStyles(column) {
+        const styles = [];
+        if (column.minWidth) styles.push(`min-width: ${column.minWidth}`);
+        if (column.maxWidth) styles.push(`max-width: ${column.maxWidth}`);
+        return styles.join('; ');
+    }
+
+    /**
+     * Escape HTML to prevent XSS
+     * @param {string} text - Text to escape
+     * @returns {string} Escaped text
+     */
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    /**
+     * Render appended rows for pagination
+     * @param {Array} newRows - New rows to append
+     * @param {string} layoutType - Current layout type
+     * @param {Array} schema - Column schema
+     */
+    renderAppendedRows(newRows, layoutType, schema) {
+        const grid = this.getGrid();
+        const elements = grid.getDOMElements();
+        
+        if (layoutType === 'table' && elements.tbody) {
+            const fragment = document.createDocumentFragment();
+            newRows.forEach((row) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = this.renderTableRow(row, schema);
+                fragment.appendChild(tr);
+            });
+            elements.tbody.appendChild(fragment);
+        } else if (elements.gridContainer) {
+            const fragment = document.createDocumentFragment();
+            newRows.forEach((row) => {
+                const card = document.createElement('div');
+                card.className = 'grid-card';
+                card.innerHTML = this.renderGridCard(row, schema);
+                fragment.appendChild(card);
+            });
+            elements.gridContainer.appendChild(fragment);
+        }
+    }
+}
+
+// Export for use in both ES modules and browser globals
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = LayoutRendererExtension;
+} else if (typeof window !== 'undefined') {
+    window.LayoutRendererExtension = LayoutRendererExtension;
+}

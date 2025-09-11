@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LayoutRendererExtension Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 20px; border: 1px solid #ddd; }
+        .controls { margin: 10px 0; }
+        button { margin: 5px; padding: 8px 12px; }
+        #output { margin-top: 10px; font-family: monospace; background: #f5f5f5; padding: 10px; }
+    </style>
+</head>
+<body>
+    <h1>LayoutRendererExtension Test</h1>
+    
+    <div class="test-section">
+        <h2>Grid with Layout Extension</h2>
+        <div class="controls">
+            <button onclick="loadLayoutExtension()">Load Layout Extension</button>
+            <button onclick="unloadLayoutExtension()">Unload Layout Extension</button>
+            <button onclick="switchToTable()">Switch to Table</button>
+            <button onclick="switchToGrid()">Switch to Grid</button>
+            <button onclick="addMoreData()">Add More Data</button>
+        </div>
+        <swivel-grid id="testGrid"></swivel-grid>
+    </div>
+    
+    <div class="test-section">
+        <h2>Test Output</h2>
+        <div id="output"></div>
+    </div>
+
+    <!-- Load scripts -->
+    <script src="SwivelGrid.js"></script>
+    <script src="extensions/BaseExtension.js"></script>
+    <script src="extensions/LayoutRendererExtension.js"></script>
+
+    <script>
+        const grid = document.getElementById('testGrid');
+        const output = document.getElementById('output');
+        
+        function log(message) {
+            output.innerHTML += new Date().toLocaleTimeString() + ': ' + message + '<br>';
+            console.log(message);
+            // Auto-scroll to bottom
+            output.scrollTop = output.scrollHeight;
+        }
+        
+        // Initialize grid with test data
+        function initializeGrid() {
+            grid.schema = [
+                { key: 'id', label: 'ID', sortable: true },
+                { key: 'name', label: 'Name', sortable: true },
+                { key: 'status', label: 'Status' },
+                { key: 'score', label: 'Score', type: 'rating' }
+            ];
+            
+            grid.rows = [
+                { id: 1, name: 'Test Item 1', status: 'Active', score: 4.5 },
+                { id: 2, name: 'Test Item 2', status: 'Inactive', score: 3.2 },
+                { id: 3, name: 'Test Item 3', status: 'Active', score: 4.8 },
+                { id: 4, name: 'Test Item 4', status: 'Pending', score: 2.1 }
+            ];
+            
+            log('Grid initialized with test data');
+        }
+        
+        function loadLayoutExtension() {
+            if (grid.hasExtension('layout-renderer')) {
+                log('Layout extension already loaded');
+                return;
+            }
+            
+            const layoutExtension = new LayoutRendererExtension();
+            const success = grid.registerExtension(layoutExtension);
+            
+            if (success) {
+                log('✓ LayoutRendererExtension loaded successfully');
+                log(`Total extensions: ${grid.listExtensions().length}`);
+                
+                // Re-render to see the extension in action
+                grid.render();
+                log('Grid re-rendered with extension');
+            } else {
+                log('✗ Failed to load LayoutRendererExtension');
+            }
+        }
+        
+        function unloadLayoutExtension() {
+            const success = grid.unregisterExtension('layout-renderer');
+            if (success) {
+                log('✓ LayoutRendererExtension unloaded');
+                log(`Total extensions: ${grid.listExtensions().length}`);
+                
+                // Re-render with fallback
+                grid.render();
+                log('Grid re-rendered with fallback rendering');
+            } else {
+                log('✗ Failed to unload LayoutRendererExtension');
+            }
+        }
+        
+        function switchToTable() {
+            grid.layoutType = 'table';
+            log('Switched to table layout');
+        }
+        
+        function switchToGrid() {
+            grid.layoutType = 'grid';
+            log('Switched to grid layout');
+        }
+        
+        function addMoreData() {
+            const newRows = [
+                { id: 5, name: 'New Item 5', status: 'Active', score: 3.7 },
+                { id: 6, name: 'New Item 6', status: 'Inactive', score: 4.1 }
+            ];
+            
+            grid.appendData(newRows);
+            log('Added 2 new rows via appendData()');
+        }
+        
+        function testLayoutExtensionFeatures() {
+            log('=== Testing Layout Extension Features ===');
+            
+            // Test extension registration
+            loadLayoutExtension();
+            
+            // Test table rendering
+            log('Testing table rendering...');
+            switchToTable();
+            
+            // Test grid rendering
+            setTimeout(() => {
+                log('Testing grid rendering...');
+                switchToGrid();
+                
+                // Test appended rows
+                setTimeout(() => {
+                    log('Testing appended rows...');
+                    addMoreData();
+                }, 500);
+            }, 500);
+        }
+        
+        // Initialize when page loads
+        window.addEventListener('load', () => {
+            initializeGrid();
+            
+            // Auto-test after a short delay
+            setTimeout(testLayoutExtensionFeatures, 1000);
+        });
+        
+        // Test backward compatibility
+        function testBackwardCompatibility() {
+            log('=== Testing Backward Compatibility ===');
+            
+            // Unload extension
+            unloadLayoutExtension();
+            
+            // Test that grid still works
+            log('Testing fallback rendering...');
+            grid.render();
+            
+            // Test layout switching without extension
+            setTimeout(() => {
+                switchToTable();
+                setTimeout(() => {
+                    switchToGrid();
+                    log('✓ Backward compatibility verified');
+                }, 300);
+            }, 300);
+        }
+        
+        // Add test button for backward compatibility
+        setTimeout(() => {
+            const controls = document.querySelector('.controls');
+            const backwardBtn = document.createElement('button');
+            backwardBtn.textContent = 'Test Backward Compatibility';
+            backwardBtn.onclick = testBackwardCompatibility;
+            controls.appendChild(backwardBtn);
+        }, 2000);
+    </script>
+</body>
+</html>
