@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AccessibilityExtension Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 20px; border: 1px solid #ddd; }
+        .controls { margin: 10px 0; }
+        button { margin: 5px; padding: 8px 12px; }
+        #output { margin-top: 10px; font-family: monospace; background: #f5f5f5; padding: 10px; max-height: 400px; overflow-y: auto; }
+        .grid-container { margin: 20px 0; }
+        .status { margin: 10px 0; padding: 10px; background: #e8f4f8; border-radius: 4px; }
+        .keyboard-instructions { 
+            background: #fff3cd; 
+            border: 1px solid #ffeaa7; 
+            border-radius: 4px; 
+            padding: 15px; 
+            margin: 10px 0; 
+        }
+        .keyboard-instructions h3 { margin-top: 0; }
+        .keyboard-instructions kbd {
+            background: #f1f3f4;
+            border: 1px solid #dadce0;
+            border-radius: 3px;
+            padding: 2px 4px;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <h1>AccessibilityExtension Test</h1>
+    
+    <div class="keyboard-instructions">
+        <h3>Keyboard Navigation Instructions</h3>
+        <ul>
+            <li><kbd>Tab</kbd> / <kbd>Shift+Tab</kbd> - Navigate between focusable elements</li>
+            <li><kbd>Arrow Keys</kbd> - Navigate within the grid</li>
+            <li><kbd>Enter</kbd> / <kbd>Space</kbd> - Activate sort on column headers</li>
+            <li><kbd>Home</kbd> / <kbd>End</kbd> - Jump to first/last column (with Ctrl)</li>
+            <li>Use a screen reader to test ARIA announcements</li>
+        </ul>
+    </div>
+    
+    <div class="test-section">
+        <h2>Grid with Accessibility Extension</h2>
+        <div class="controls">
+            <button onclick="loadAllExtensions()">Load All Extensions</button>
+            <button onclick="loadAccessibilityOnly()">Load Accessibility Only</button>
+            <button onclick="unloadAccessibility()">Unload Accessibility</button>
+            <button onclick="switchToTable()">Switch to Table</button>
+            <button onclick="switchToGrid()">Switch to Grid</button>
+            <button onclick="testKeyboardNavigation()">Test Keyboard Navigation</button>
+            <button onclick="testARIALabels()">Test ARIA Labels</button>
+            <button onclick="testScreenReader()">Test Screen Reader</button>
+            <button onclick="focusFirstHeader()">Focus First Header</button>
+        </div>
+        <div class="status" id="accessibilityStatus">Accessibility extension not loaded</div>
+        <div class="grid-container">
+            <swivel-grid id="testGrid"></swivel-grid>
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Test Output</h2>
+        <div id="output"></div>
+    </div>
+
+    <!-- Load scripts -->
+    <script src="SwivelGrid.js"></script>
+    <script src="extensions/BaseExtension.js"></script>
+    <script src="extensions/LayoutRendererExtension.js"></script>
+    <script src="extensions/ColumnTypesExtension.js"></script>
+    <script src="extensions/SortingExtension.js"></script>
+    <script src="extensions/SearchExtension.js"></script>
+    <script src="extensions/TemplateExtension.js"></script>
+    <script src="extensions/PaginationExtension.js"></script>
+    <script src="extensions/AccessibilityExtension.js"></script>
+
+    <script>
+        const grid = document.getElementById('testGrid');
+        const output = document.getElementById('output');
+        const accessibilityStatus = document.getElementById('accessibilityStatus');
+        
+        function log(message) {
+            output.innerHTML += new Date().toLocaleTimeString() + ': ' + message + '<br>';
+            console.log(message);
+            output.scrollTop = output.scrollHeight;
+        }
+        
+        function updateAccessibilityStatus() {
+            const accessibilityExt = grid.getExtension('accessibility');
+            if (accessibilityExt && accessibilityExt.enabled) {
+                const config = accessibilityExt.getAccessibilityConfig();
+                accessibilityStatus.innerHTML = `
+                    <strong>Accessibility Extension Active</strong><br>
+                    Keyboard Navigation: ${config.keyboardNavigation ? '✓' : '✗'}<br>
+                    Screen Reader Support: ${config.screenReaderSupport ? '✓' : '✗'}<br>
+                    ARIA Labels: ${config.ariaLabels ? '✓' : '✗'}<br>
+                    Focus Management: ${config.focusManagement ? '✓' : '✗'}<br>
+                    High Contrast: ${config.highContrast ? '✓' : '✗'}<br>
+                    Reduced Motion: ${config.reducedMotion ? '✓' : '✗'}
+                `;
+                accessibilityStatus.style.background = '#d4edda';
+            } else {
+                accessibilityStatus.textContent = 'Accessibility extension not loaded';
+                accessibilityStatus.style.background = '#f8d7da';
+            }
+        }
+        
+        // Initialize grid with test data
+        function initializeGrid() {
+            const data = [
+                { 
+                    id: 1, 
+                    name: 'Alice Johnson', 
+                    email: 'alice@example.com',
+                    department: 'Engineering',
+                    role: 'Senior Developer',
+                    status: 'Active',
+                    rating: 4.5,
+                    joinDate: '2022-01-15'
+                },
+                { 
+                    id: 2, 
+                    name: 'Bob Smith', 
+                    email: 'bob@example.com',
+                    department: 'Design',
+                    role: 'UI Designer',
+                    status: 'Active',
+                    rating: 3.8,
+                    joinDate: '2022-03-20'
+                },
+                { 
+                    id: 3, 
+                    name: 'Carol Davis', 
+                    email: 'carol@example.com',
+                    department: 'Marketing',
+                    role: 'Content Manager',
+                    status: 'Inactive',
+                    rating: 4.2,
+                    joinDate: '2022-02-10'
+                },
+                { 
+                    id: 4, 
+                    name: 'David Wilson', 
+                    email: 'david@example.com',
+                    department: 'Sales',
+                    role: 'Account Executive',
+                    status: 'Active',
+                    rating: 3.9,
+                    joinDate: '2022-04-05'
+                }
+            ];
+            
+            grid.schema = [
+                { key: 'id', label: 'ID', sortable: true },
+                { key: 'name', label: 'Full Name', sortable: true },
+                { key: 'email', label: 'Email Address', sortable: true },
+                { key: 'department', label: 'Department', sortable: true },
+                { key: 'role', label: 'Job Role', sortable: true },
+                { key: 'status', label: 'Status', sortable: true },
+                { key: 'rating', label: 'Rating', sortable: true, type: 'rating' },
+                { key: 'joinDate', label: 'Join Date', sortable: false }
+            ];
+            
+            grid.setData(data);
+            
+            log('Grid initialized with accessibility-focused test data');
+            updateAccessibilityStatus();
+        }
+        
+        function loadAllExtensions() {
+            // Load all extensions including accessibility
+            if (!grid.hasExtension('layout-renderer')) {
+                grid.registerExtension(new LayoutRendererExtension());
+                log('✓ LayoutRendererExtension loaded');
+            }
+            
+            if (!grid.hasExtension('column-types')) {
+                grid.registerExtension(new ColumnTypesExtension());
+                log('✓ ColumnTypesExtension loaded');
+            }
+            
+            if (!grid.hasExtension('sorting')) {
+                grid.registerExtension(new SortingExtension());
+                log('✓ SortingExtension loaded');
+            }
+            
+            if (!grid.hasExtension('accessibility')) {
+                grid.registerExtension(new AccessibilityExtension());
+                log('✓ AccessibilityExtension loaded');
+            }
+            
+            log(`Total extensions: ${grid.listExtensions().length}`);
+            grid.render();
+            updateAccessibilityStatus();
+            log('Grid re-rendered with all extensions including accessibility');
+        }
+        
+        function loadAccessibilityOnly() {
+            // Load only accessibility extension for focused testing
+            grid.unregisterExtension('column-types');
+            grid.unregisterExtension('sorting');
+            
+            if (!grid.hasExtension('accessibility')) {
+                grid.registerExtension(new AccessibilityExtension());
+                log('✓ AccessibilityExtension loaded (standalone)');
+            }
+            
+            grid.render();
+            updateAccessibilityStatus();
+            log('Grid re-rendered with AccessibilityExtension only');
+        }
+        
+        function unloadAccessibility() {
+            const success = grid.unregisterExtension('accessibility');
+            if (success) {
+                log('✓ AccessibilityExtension unloaded');
+                grid.render();
+                updateAccessibilityStatus();
+                log('Grid re-rendered with fallback accessibility features');
+            } else {
+                log('✗ Failed to unload AccessibilityExtension');
+            }
+        }
+        
+        function switchToTable() {
+            grid.layoutType = 'table';
+            log('Switched to table layout - test keyboard navigation with arrow keys');
+        }
+        
+        function switchToGrid() {
+            grid.layoutType = 'grid';
+            log('Switched to grid layout - test keyboard navigation with arrow keys');
+        }
+        
+        function testKeyboardNavigation() {
+            log('=== Testing Keyboard Navigation ===');
+            
+            const accessibilityExt = grid.getExtension('accessibility');
+            if (!accessibilityExt) {
+                log('✗ AccessibilityExtension not loaded');
+                return;
+            }
+            
+            log('Testing keyboard navigation:');
+            log('1. Tab to focus the first column header');
+            log('2. Use Left/Right arrows to navigate between headers');
+            log('3. Press Enter or Space to sort columns');
+            log('4. Use Ctrl+Home/End to jump to first/last header');
+            
+            // Focus the first header programmatically
+            setTimeout(() => {
+                const firstHeader = grid.shadowRoot.querySelector('th[role="columnheader"]:not([aria-disabled="true"])');
+                if (firstHeader) {
+                    firstHeader.focus();
+                    log('✓ First header focused programmatically');
+                } else {
+                    log('✗ No focusable headers found');
+                }
+            }, 100);
+        }
+        
+        function testARIALabels() {
+            log('=== Testing ARIA Labels ===');
+            
+            const accessibilityExt = grid.getExtension('accessibility');
+            if (!accessibilityExt) {
+                log('✗ AccessibilityExtension not loaded');
+                return;
+            }
+            
+            // Test ARIA generation
+            const sampleColumn = { key: 'name', label: 'Full Name', sortable: true, sort: 'ASC' };
+            const headerARIA = accessibilityExt.generateHeaderARIA(sampleColumn);
+            log(`Sample header ARIA: ${headerARIA}`);
+            
+            const containerARIA = accessibilityExt.generateContainerARIA('table');
+            log(`Table container ARIA: ${JSON.stringify(containerARIA)}`);
+            
+            const gridARIA = accessibilityExt.generateContainerARIA('grid');
+            log(`Grid container ARIA: ${JSON.stringify(gridARIA)}`);
+            
+            // Test screen reader content generation
+            const screenReaderContent = accessibilityExt.generateScreenReaderContent('This is for screen readers only');
+            log(`Screen reader content: ${screenReaderContent}`);
+            
+            // Test live region
+            const liveRegion = accessibilityExt.generateLiveRegion('Data updated', 'assertive');
+            log(`Live region: ${liveRegion}`);
+        }
+        
+        function testScreenReader() {
+            log('=== Testing Screen Reader Features ===');
+            
+            const accessibilityExt = grid.getExtension('accessibility');
+            if (!accessibilityExt) {
+                log('✗ AccessibilityExtension not loaded');
+                return;
+            }
+            
+            log('Testing screen reader announcements:');
+            
+            // Test different types of announcements
+            setTimeout(() => {
+                accessibilityExt._announceToScreenReader('Testing polite announcement');
+                log('✓ Sent polite announcement to screen reader');
+            }, 500);
+            
+            setTimeout(() => {
+                accessibilityExt._announceToScreenReader('Testing assertive announcement');
+                log('✓ Sent assertive announcement to screen reader');
+            }, 1500);
+            
+            // Test keyboard instructions
+            const instructions = accessibilityExt.generateKeyboardInstructions();
+            log(`Keyboard instructions generated: ${instructions.includes('Use arrow keys') ? '✓' : '✗'}`);
+            
+            log('Check your screen reader or browser developer tools to verify live regions');
+        }
+        
+        function focusFirstHeader() {
+            const firstHeader = grid.shadowRoot.querySelector('th[role="columnheader"]:not([aria-disabled="true"])');
+            if (firstHeader) {
+                firstHeader.focus();
+                log('✓ Focused first sortable header');
+            } else {
+                log('✗ No focusable headers found');
+            }
+        }
+        
+        function testEventListeners() {
+            log('=== Setting up Accessibility Event Listeners ===');
+            
+            // Listen for focus events
+            grid.addEventListener('focus', (e) => {
+                if (e.target.matches('th[role="columnheader"]')) {
+                    log(`🎯 Header focused: ${e.target.textContent.trim()}`);
+                }
+            }, true);
+            
+            // Listen for sort events to test announcements
+            grid.addEventListener('swivel:sort', (e) => {
+                log(`🎯 Sort event: ${e.detail.key} - ${e.detail.direction}`);
+            });
+            
+            // Listen for keyboard events
+            grid.addEventListener('keydown', (e) => {
+                if (e.target.matches('th[role="columnheader"]')) {
+                    log(`⌨️  Key pressed on header: ${e.key}`);
+                }
+            });
+            
+            log('Event listeners configured');
+        }
+        
+        function demonstrateHighContrast() {
+            log('=== Testing High Contrast Mode ===');
+            
+            // Toggle a high contrast class for demonstration
+            const gridElement = grid.shadowRoot.querySelector('.scroll-container');
+            if (gridElement) {
+                gridElement.style.setProperty('--focus-color', '#ff0000');
+                gridElement.style.setProperty('--focus-bg', 'rgba(255, 0, 0, 0.2)');
+                log('✓ Applied high contrast focus colors (red)');
+                
+                setTimeout(() => {
+                    gridElement.style.removeProperty('--focus-color');
+                    gridElement.style.removeProperty('--focus-bg');
+                    log('✓ Removed high contrast colors');
+                }, 3000);
+            }
+        }
+        
+        // Initialize when page loads
+        window.addEventListener('load', () => {
+            initializeGrid();
+            testEventListeners();
+            
+            // Auto-load extensions after a short delay
+            setTimeout(loadAllExtensions, 1000);
+            
+            // Auto-test ARIA labels
+            setTimeout(testARIALabels, 2000);
+            
+            // Demonstrate high contrast after load
+            setTimeout(demonstrateHighContrast, 8000);
+        });
+        
+        // Update accessibility status periodically
+        setInterval(updateAccessibilityStatus, 3000);
+    </script>
+</body>
+</html>

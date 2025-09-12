@@ -69,11 +69,7 @@ class LayoutRendererExtension extends BaseExtension {
                                 <th class="${this.getSortClass(col)}" 
                                     data-key="${col.key}"
                                     style="${this.getColumnStyles(col)}"
-                                    role="columnheader"
-                                    scope="col"
-                                    tabindex="${col.sortable === false ? '-1' : '0'}"
-                                    aria-sort="${col.sort === 'ASC' ? 'ascending' : col.sort === 'DESC' ? 'descending' : 'none'}"
-                                    aria-disabled="${col.sortable === false ? 'true' : 'false'}">
+                                    ${this.getHeaderARIA(col)}>
                                     ${this.renderHeaderContent(col)}
                                 </th>
                             `).join('')}
@@ -113,10 +109,11 @@ class LayoutRendererExtension extends BaseExtension {
     renderGrid(context) {
         const { schema, rows } = context;
         
+        const containerARIA = this.getContainerARIA('grid');
         return `
-            <div class="grid-container" role="list">
+            <div class="grid-container" ${containerARIA.container}>
                 ${rows.map(row => `
-                    <div class="grid-card" role="listitem">
+                    <div class="grid-card" ${containerARIA.item}>
                         ${this.renderGridCard(row, schema)}
                     </div>
                 `).join('')}
@@ -143,8 +140,9 @@ class LayoutRendererExtension extends BaseExtension {
         if (otherCols.length) {
             const labelId = `label-${Math.random().toString(36).substr(2, 9)}`;
             
+            const containerARIA = this.getContainerARIA('grid');
             content += `
-                <section role="group" aria-labelledby="${labelId}">
+                <section ${containerARIA.group} aria-labelledby="${labelId}">
                     ${otherCols.map((col, index) => `
                         <div class="grid-field">
                             <span class="grid-field-label" ${index === 0 ? `id="${labelId}"` : ''}>${this.renderHeaderContent(col, true)}:</span>
@@ -262,6 +260,56 @@ class LayoutRendererExtension extends BaseExtension {
         if (column.minWidth) styles.push(`min-width: ${column.minWidth}`);
         if (column.maxWidth) styles.push(`max-width: ${column.maxWidth}`);
         return styles.join('; ');
+    }
+
+    /**
+     * Get header ARIA attributes (uses AccessibilityExtension if available)
+     * @param {Object} column - Column configuration
+     * @returns {string} ARIA attributes
+     */
+    getHeaderARIA(column) {
+        const grid = this.getGrid();
+        const accessibilityExtension = grid?.getExtension('accessibility');
+        if (accessibilityExtension && accessibilityExtension.enabled) {
+            return accessibilityExtension.generateHeaderARIA(column);
+        }
+        
+        // Fallback implementation
+        return [
+            'role="columnheader"',
+            'scope="col"',
+            `tabindex="${column.sortable === false ? '-1' : '0'}"`,
+            `aria-sort="${column.sort === 'ASC' ? 'ascending' : column.sort === 'DESC' ? 'descending' : 'none'}"`,
+            `aria-disabled="${column.sortable === false ? 'true' : 'false'}"`
+        ].join(' ');
+    }
+
+    /**
+     * Get container ARIA attributes (uses AccessibilityExtension if available)
+     * @param {string} layoutType - Layout type
+     * @returns {Object} ARIA attributes
+     */
+    getContainerARIA(layoutType) {
+        const grid = this.getGrid();
+        const accessibilityExtension = grid?.getExtension('accessibility');
+        if (accessibilityExtension && accessibilityExtension.enabled) {
+            return accessibilityExtension.generateContainerARIA(layoutType);
+        }
+        
+        // Fallback implementation
+        if (layoutType === 'grid') {
+            return {
+                container: 'role="list"',
+                item: 'role="listitem"',
+                group: 'role="group"'
+            };
+        }
+        
+        return {
+            container: 'role="table"',
+            item: '',
+            group: ''
+        };
     }
 
     /**
