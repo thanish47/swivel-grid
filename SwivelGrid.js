@@ -884,9 +884,17 @@ class SwivelGrid extends HTMLElement {
         // Default behavior: fallback to existing logic
         if (value === null || value === undefined) {
             const placeholder = '—';
-            return column.cellClass ? 
-                `<span class="${this._sanitizeClassName(column.cellClass)}">${placeholder}</span>` : 
-                placeholder;
+            if (column.cellClass) {
+                // Try to use CssClassesExtension first
+                const cssClassesExtension = this.getExtension('css-classes');
+                if (cssClassesExtension && cssClassesExtension.enabled) {
+                    return cssClassesExtension.applyCellClass(placeholder, column, value, row);
+                }
+                
+                // Fallback implementation
+                return `<span class="${this._sanitizeClassName(column.cellClass)}">${placeholder}</span>`;
+            }
+            return placeholder;
         }
 
         let content;
@@ -904,6 +912,13 @@ class SwivelGrid extends HTMLElement {
 
         // Apply cellClass to default content (but not to special types like rating/image)
         if (column.cellClass && column.type !== 'rating' && column.type !== 'image') {
+            // Try to use CssClassesExtension first
+            const cssClassesExtension = this.getExtension('css-classes');
+            if (cssClassesExtension && cssClassesExtension.enabled) {
+                return cssClassesExtension.applyCellClass(content, column, value, row);
+            }
+            
+            // Fallback implementation
             return `<span class="${this._sanitizeClassName(column.cellClass)}">${content}</span>`;
         }
         
@@ -1119,6 +1134,13 @@ class SwivelGrid extends HTMLElement {
         // Default behavior with optional class application
         const label = this._escapeHtml(column.label);
         if (column.headerClass) {
+            // Try to use CssClassesExtension first
+            const cssClassesExtension = this.getExtension('css-classes');
+            if (cssClassesExtension && cssClassesExtension.enabled) {
+                return cssClassesExtension.applyHeaderClass(label, column);
+            }
+            
+            // Fallback implementation
             return `<span class="${this._sanitizeClassName(column.headerClass)}">${label}</span>`;
         }
         
@@ -1183,6 +1205,13 @@ class SwivelGrid extends HTMLElement {
     }
 
     _sanitizeClassName(s) {
+        // Try to use CssClassesExtension first
+        const cssClassesExtension = this.getExtension('css-classes');
+        if (cssClassesExtension && cssClassesExtension.enabled) {
+            return cssClassesExtension.sanitizeClassName(s);
+        }
+        
+        // Fallback implementation
         return typeof s === 'string' ? s.split(/\s+/).map(t => t.replace(/[^\w-]/g, '')).join(' ') : '';
     }
 

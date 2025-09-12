@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CssClassesExtension Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 20px; border: 1px solid #ddd; }
+        .controls { margin: 10px 0; }
+        button { margin: 5px; padding: 8px 12px; }
+        #output { margin-top: 10px; font-family: monospace; background: #f5f5f5; padding: 10px; max-height: 400px; overflow-y: auto; }
+        .grid-container { margin: 20px 0; }
+        .status { margin: 10px 0; padding: 10px; background: #e8f4f8; border-radius: 4px; }
+        
+        /* Custom test classes for demonstration */
+        .header-primary { font-weight: bold; color: #0969da; text-transform: uppercase; }
+        .header-secondary { font-weight: 500; color: #656d76; }
+        .cell-highlight { background-color: #fff3cd; padding: 4px 8px; border-radius: 4px; }
+        .cell-success { background-color: #d4edda; color: #155724; padding: 4px 8px; border-radius: 4px; }
+        .cell-danger { background-color: #f8d7da; color: #721c24; padding: 4px 8px; border-radius: 4px; }
+        .cell-warning { background-color: #fff3cd; color: #856404; padding: 4px 8px; border-radius: 4px; }
+        .cell-numeric { text-align: right; font-family: 'SF Mono', Monaco, monospace; font-weight: 500; }
+        .cell-currency { text-align: right; font-weight: bold; color: #1a7f37; }
+        
+        /* Row styling examples */
+        .priority-high { background-color: rgba(220, 53, 69, 0.1) !important; border-left: 4px solid #dc3545; }
+        .priority-medium { background-color: rgba(255, 193, 7, 0.1) !important; border-left: 4px solid #ffc107; }
+        .priority-low { background-color: rgba(108, 117, 125, 0.1) !important; border-left: 4px solid #6c757d; }
+        
+        /* Utility classes demo */
+        .demo-utility { padding: 20px; margin: 10px 0; border: 1px solid #dee2e6; border-radius: 4px; }
+        .demo-utility h4 { margin-top: 0; }
+        .demo-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
+        .demo-item { padding: 10px; border: 1px solid #ccc; border-radius: 4px; text-align: center; }
+    </style>
+</head>
+<body>
+    <h1>CssClassesExtension Test</h1>
+    
+    <div class="test-section">
+        <h2>Grid with CSS Classes Extension</h2>
+        <div class="controls">
+            <button onclick="loadAllExtensions()">Load All Extensions</button>
+            <button onclick="loadCssClassesOnly()">Load CSS Classes Only</button>
+            <button onclick="unloadCssClasses()">Unload CSS Classes</button>
+            <button onclick="switchToTable()">Switch to Table</button>
+            <button onclick="switchToGrid()">Switch to Grid</button>
+            <button onclick="testBasicClasses()">Test Basic Classes</button>
+            <button onclick="testUtilityClasses()">Test Utility Classes</button>
+            <button onclick="testClassValidation()">Test Class Validation</button>
+            <button onclick="testSanitization()">Test Sanitization</button>
+        </div>
+        <div class="status" id="cssClassesStatus">CSS Classes extension not loaded</div>
+        <div class="grid-container">
+            <swivel-grid id="testGrid"></swivel-grid>
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Utility Classes Demo</h2>
+        <div id="utilityDemo"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Test Output</h2>
+        <div id="output"></div>
+    </div>
+
+    <!-- Load scripts -->
+    <script src="SwivelGrid.js"></script>
+    <script src="extensions/BaseExtension.js"></script>
+    <script src="extensions/LayoutRendererExtension.js"></script>
+    <script src="extensions/ColumnTypesExtension.js"></script>
+    <script src="extensions/SortingExtension.js"></script>
+    <script src="extensions/SearchExtension.js"></script>
+    <script src="extensions/TemplateExtension.js"></script>
+    <script src="extensions/PaginationExtension.js"></script>
+    <script src="extensions/AccessibilityExtension.js"></script>
+    <script src="extensions/CssClassesExtension.js"></script>
+
+    <script>
+        const grid = document.getElementById('testGrid');
+        const output = document.getElementById('output');
+        const cssClassesStatus = document.getElementById('cssClassesStatus');
+        const utilityDemo = document.getElementById('utilityDemo');
+        
+        function log(message) {
+            output.innerHTML += new Date().toLocaleTimeString() + ': ' + message + '<br>';
+            console.log(message);
+            output.scrollTop = output.scrollHeight;
+        }
+        
+        function updateCssClassesStatus() {
+            const cssClassesExt = grid.getExtension('css-classes');
+            if (cssClassesExt && cssClassesExt.enabled) {
+                const config = cssClassesExt.getConfig();
+                const stats = cssClassesExt.getClassStats(grid.schema || []);
+                cssClassesStatus.innerHTML = `
+                    <strong>CSS Classes Extension Active</strong><br>
+                    Sanitization Enabled: ${config.enableSanitization ? '✓' : '✗'}<br>
+                    Max Class Length: ${config.maxClassNameLength}<br>
+                    Blacklisted Classes: ${config.blacklistedClasses.join(', ')}<br>
+                    Schema Stats: ${stats.headerClasses} header, ${stats.cellClasses} cell classes<br>
+                    Unique Classes: ${stats.totalUniqueClasses}
+                `;
+                cssClassesStatus.style.background = '#d4edda';
+            } else {
+                cssClassesStatus.textContent = 'CSS Classes extension not loaded';
+                cssClassesStatus.style.background = '#f8d7da';
+            }
+        }
+        
+        function createUtilityDemo() {
+            const cssClassesExt = grid.getExtension('css-classes');
+            if (!cssClassesExt) return;
+            
+            const utilities = cssClassesExt.getUtilityClasses();
+            
+            utilityDemo.innerHTML = `
+                <div class="demo-utility">
+                    <h4>Text Alignment Classes</h4>
+                    <div class="demo-grid">
+                        <div class="demo-item text-left">Left Aligned</div>
+                        <div class="demo-item text-center">Center Aligned</div>
+                        <div class="demo-item text-right">Right Aligned</div>
+                    </div>
+                </div>
+                
+                <div class="demo-utility">
+                    <h4>Text Style Classes</h4>
+                    <div class="demo-grid">
+                        <div class="demo-item text-bold">Bold Text</div>
+                        <div class="demo-item text-italic">Italic Text</div>
+                        <div class="demo-item text-underline">Underlined Text</div>
+                    </div>
+                </div>
+                
+                <div class="demo-utility">
+                    <h4>Color Classes</h4>
+                    <div class="demo-grid">
+                        <div class="demo-item text-primary">Primary</div>
+                        <div class="demo-item text-success">Success</div>
+                        <div class="demo-item text-warning">Warning</div>
+                        <div class="demo-item text-danger">Danger</div>
+                    </div>
+                </div>
+                
+                <div class="demo-utility">
+                    <h4>Background Classes</h4>
+                    <div class="demo-grid">
+                        <div class="demo-item bg-primary">Primary BG</div>
+                        <div class="demo-item bg-success">Success BG</div>
+                        <div class="demo-item bg-warning">Warning BG</div>
+                        <div class="demo-item bg-danger">Danger BG</div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Initialize grid with CSS class test data
+        function initializeGrid() {
+            const data = [
+                { 
+                    id: 1, 
+                    name: 'Alice Johnson', 
+                    email: 'alice@example.com',
+                    department: 'Engineering',
+                    salary: 85000,
+                    status: 'active',
+                    priority: 'high',
+                    performance: 95,
+                    _cssClass: 'priority-high'
+                },
+                { 
+                    id: 2, 
+                    name: 'Bob Smith', 
+                    email: 'bob@example.com',
+                    department: 'Design',
+                    salary: 72000,
+                    status: 'active',
+                    priority: 'medium',
+                    performance: 87,
+                    _cssClass: 'priority-medium'
+                },
+                { 
+                    id: 3, 
+                    name: 'Carol Davis', 
+                    email: 'carol@example.com',
+                    department: 'Marketing',
+                    salary: 68000,
+                    status: 'inactive',
+                    priority: 'low',
+                    performance: 78,
+                    _cssClass: 'priority-low'
+                },
+                { 
+                    id: 4, 
+                    name: 'David Wilson', 
+                    email: 'david@example.com',
+                    department: 'Sales',
+                    salary: 91000,
+                    status: 'active',
+                    priority: 'high',
+                    performance: 92,
+                    _cssClass: 'priority-high'
+                }
+            ];
+            
+            // Basic schema without custom classes
+            grid.schema = [
+                { key: 'id', label: 'ID' },
+                { key: 'name', label: 'Full Name' },
+                { key: 'email', label: 'Email' },
+                { key: 'department', label: 'Department' },
+                { key: 'salary', label: 'Salary' },
+                { key: 'status', label: 'Status' },
+                { key: 'performance', label: 'Performance %' }
+            ];
+            
+            grid.setData(data);
+            
+            log('Grid initialized with CSS class test data');
+            updateCssClassesStatus();
+        }
+        
+        function loadAllExtensions() {
+            // Load all extensions including CSS classes
+            if (!grid.hasExtension('layout-renderer')) {
+                grid.registerExtension(new LayoutRendererExtension());
+                log('✓ LayoutRendererExtension loaded');
+            }
+            
+            if (!grid.hasExtension('column-types')) {
+                grid.registerExtension(new ColumnTypesExtension());
+                log('✓ ColumnTypesExtension loaded');
+            }
+            
+            if (!grid.hasExtension('sorting')) {
+                grid.registerExtension(new SortingExtension());
+                log('✓ SortingExtension loaded');
+            }
+            
+            if (!grid.hasExtension('css-classes')) {
+                grid.registerExtension(new CssClassesExtension());
+                log('✓ CssClassesExtension loaded');
+            }
+            
+            log(`Total extensions: ${grid.listExtensions().length}`);
+            grid.render();
+            updateCssClassesStatus();
+            createUtilityDemo();
+            log('Grid re-rendered with all extensions including CSS classes');
+        }
+        
+        function loadCssClassesOnly() {
+            // Load only CSS classes extension for focused testing
+            grid.unregisterExtension('column-types');
+            grid.unregisterExtension('sorting');
+            
+            if (!grid.hasExtension('css-classes')) {
+                grid.registerExtension(new CssClassesExtension());
+                log('✓ CssClassesExtension loaded (standalone)');
+            }
+            
+            grid.render();
+            updateCssClassesStatus();
+            createUtilityDemo();
+            log('Grid re-rendered with CssClassesExtension only');
+        }
+        
+        function unloadCssClasses() {
+            const success = grid.unregisterExtension('css-classes');
+            if (success) {
+                log('✓ CssClassesExtension unloaded');
+                grid.render();
+                updateCssClassesStatus();
+                utilityDemo.innerHTML = '<p>CSS Classes extension unloaded - utility classes not available</p>';
+                log('Grid re-rendered with fallback CSS class handling');
+            } else {
+                log('✗ Failed to unload CssClassesExtension');
+            }
+        }
+        
+        function switchToTable() {
+            grid.layoutType = 'table';
+            log('Switched to table layout - check CSS classes on cells and headers');
+        }
+        
+        function switchToGrid() {
+            grid.layoutType = 'grid';
+            log('Switched to grid layout - check CSS classes on cards and fields');
+        }
+        
+        function testBasicClasses() {
+            log('=== Testing Basic CSS Classes ===');
+            
+            // Apply custom CSS classes to schema
+            grid.schema = [
+                { 
+                    key: 'id', 
+                    label: 'ID',
+                    headerClass: 'header-secondary'
+                },
+                { 
+                    key: 'name', 
+                    label: 'Full Name',
+                    headerClass: 'header-primary',
+                    cellClass: 'cell-highlight'
+                },
+                { 
+                    key: 'email', 
+                    label: 'Email Address',
+                    headerClass: 'header-secondary'
+                },
+                { 
+                    key: 'department', 
+                    label: 'Department',
+                    headerClass: 'header-primary'
+                },
+                { 
+                    key: 'salary', 
+                    label: 'Salary',
+                    headerClass: 'header-primary',
+                    cellClass: 'cell-currency'
+                },
+                { 
+                    key: 'status', 
+                    label: 'Status',
+                    cellClass: 'cell-success'
+                },
+                { 
+                    key: 'performance', 
+                    label: 'Performance',
+                    cellClass: 'cell-numeric'
+                }
+            ];
+            
+            grid.render();
+            updateCssClassesStatus();
+            log('Applied custom CSS classes to headers and cells');
+            log('Check the grid for styled headers (blue/gray) and highlighted cells');
+        }
+        
+        function testUtilityClasses() {
+            log('=== Testing Utility Classes ===');
+            
+            const cssClassesExt = grid.getExtension('css-classes');
+            if (!cssClassesExt) {
+                log('✗ CssClassesExtension not loaded');
+                return;
+            }
+            
+            // Add utility styles
+            cssClassesExt.addUtilityStyles();
+            log('✓ Utility styles added to grid');
+            
+            // Apply utility classes to schema
+            grid.schema = [
+                { 
+                    key: 'id', 
+                    label: 'ID',
+                    cellClass: 'text-center size-small'
+                },
+                { 
+                    key: 'name', 
+                    label: 'Full Name',
+                    headerClass: 'text-center',
+                    cellClass: 'text-bold'
+                },
+                { 
+                    key: 'department', 
+                    label: 'Department',
+                    cellClass: 'text-primary text-center'
+                },
+                { 
+                    key: 'salary', 
+                    label: 'Salary',
+                    headerClass: 'text-right',
+                    cellClass: 'text-right text-success'
+                },
+                { 
+                    key: 'status', 
+                    label: 'Status',
+                    cellClass: 'text-center bg-success'
+                },
+                { 
+                    key: 'performance', 
+                    label: 'Performance',
+                    headerClass: 'text-center',
+                    cellClass: 'text-center text-bold bg-primary'
+                }
+            ];
+            
+            grid.render();
+            updateCssClassesStatus();
+            log('Applied utility classes: alignment, colors, backgrounds, and sizes');
+            log('Check the grid for utility class effects (colors, alignment, etc.)');
+        }
+        
+        function testClassValidation() {
+            log('=== Testing Class Validation ===');
+            
+            const cssClassesExt = grid.getExtension('css-classes');
+            if (!cssClassesExt) {
+                log('✗ CssClassesExtension not loaded');
+                return;
+            }
+            
+            // Test various class names
+            const testClasses = [
+                'valid-class',
+                'invalid@class',
+                'class-with-123',
+                '123-starts-with-number',
+                'very-long-class-name-that-exceeds-the-maximum-allowed-length-and-should-trigger-warnings',
+                'script-injection',
+                'eval-dangerous',
+                '',
+                '   whitespace-only   ',
+                'normal_underscore_class',
+                'kebab-case-class'
+            ];
+            
+            testClasses.forEach(className => {
+                const validation = cssClassesExt.validateClassName(className);
+                const sanitized = cssClassesExt.sanitizeClassName(className);
+                
+                log(`Class: "${className}"`);
+                log(`  Valid: ${validation.isValid ? '✓' : '✗'}`);
+                log(`  Errors: ${validation.errors.length}`);
+                log(`  Warnings: ${validation.warnings.length}`);
+                log(`  Sanitized: "${sanitized}"`);
+                log('---');
+            });
+        }
+        
+        function testSanitization() {
+            log('=== Testing CSS Class Sanitization ===');
+            
+            const cssClassesExt = grid.getExtension('css-classes');
+            if (!cssClassesExt) {
+                log('✗ CssClassesExtension not loaded');
+                return;
+            }
+            
+            // Test sanitization with dangerous input
+            const dangerousClasses = [
+                'normal-class malicious-script',
+                'class<script>alert("xss")</script>',
+                'class with spaces',
+                'class@#$%^&*()+={}[]|\\:";\'<>?,./`~',
+                '   multiple   spaces   between   words   ',
+                'CamelCaseClass',
+                'UPPERCASE_CLASS',
+                'mixed-CASE_class123'
+            ];
+            
+            dangerousClasses.forEach(className => {
+                const sanitized = cssClassesExt.sanitizeClassName(className);
+                log(`Original: "${className}" → Sanitized: "${sanitized}"`);
+            });
+            
+            // Test configuration
+            const originalConfig = cssClassesExt.getConfig();
+            log(`Original config: Sanitization ${originalConfig.enableSanitization ? 'enabled' : 'disabled'}`);
+            
+            // Test with sanitization disabled
+            cssClassesExt.setConfig({ enableSanitization: false });
+            const unsanitized = cssClassesExt.sanitizeClassName('test@class');
+            log(`With sanitization disabled: "test@class" → "${unsanitized}"`);
+            
+            // Reset config
+            cssClassesExt.setConfig({ enableSanitization: true });
+            log('Configuration reset to default');
+        }
+        
+        function testRowClasses() {
+            log('=== Testing Row Classes ===');
+            
+            const cssClassesExt = grid.getExtension('css-classes');
+            if (!cssClassesExt) {
+                log('✗ CssClassesExtension not loaded');
+                return;
+            }
+            
+            // Test row class generation
+            const sampleRows = [
+                { id: 1, status: 'active', priority: 'high', _cssClass: 'custom-row' },
+                { id: 2, status: 'inactive', priority: 'low' },
+                { id: 3, status: 'pending', priority: 'medium' }
+            ];
+            
+            sampleRows.forEach((row, index) => {
+                const rowClasses = cssClassesExt.applyRowClass(row, index);
+                log(`Row ${index + 1}: "${rowClasses}"`);
+            });
+        }
+        
+        function testClassStats() {
+            log('=== Testing Class Statistics ===');
+            
+            const cssClassesExt = grid.getExtension('css-classes');
+            if (!cssClassesExt) {
+                log('✗ CssClassesExtension not loaded');
+                return;
+            }
+            
+            const stats = cssClassesExt.getClassStats(grid.schema || []);
+            log(`Class Statistics:`);
+            log(`  Total Columns: ${stats.totalColumns}`);
+            log(`  Header Classes: ${stats.headerClasses}`);
+            log(`  Cell Classes: ${stats.cellClasses}`);
+            log(`  Column Classes: ${stats.columnClasses}`);
+            log(`  Unique Classes: ${stats.totalUniqueClasses}`);
+            log(`  Class Names: ${stats.uniqueClassNames.join(', ')}`);
+        }
+        
+        // Initialize when page loads
+        window.addEventListener('load', () => {
+            initializeGrid();
+            
+            // Auto-load extensions after a short delay
+            setTimeout(loadAllExtensions, 1000);
+            
+            // Auto-test basic classes
+            setTimeout(testBasicClasses, 2000);
+            
+            // Test row classes
+            setTimeout(testRowClasses, 4000);
+            
+            // Test class stats
+            setTimeout(testClassStats, 6000);
+        });
+        
+        // Update CSS classes status periodically
+        setInterval(updateCssClassesStatus, 3000);
+    </script>
+</body>
+</html>

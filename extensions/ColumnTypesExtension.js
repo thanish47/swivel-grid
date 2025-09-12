@@ -219,12 +219,20 @@ class ColumnTypesExtension extends BaseExtension {
     }
 
     /**
-     * Sanitize CSS class names
+     * Sanitize CSS class names (delegate to CssClassesExtension or grid fallback)
      * @param {string} className - Class name to sanitize
      * @returns {string} Sanitized class name
      */
     sanitizeClassName(className) {
-        // For now, delegate to grid's implementation if available
+        const grid = this.getGrid();
+        
+        // Try to use CssClassesExtension first
+        const cssClassesExtension = grid?.getExtension('css-classes');
+        if (cssClassesExtension && cssClassesExtension.enabled) {
+            return cssClassesExtension.sanitizeClassName(className);
+        }
+        
+        // Delegate to grid's implementation if available
         if (this.grid && this.grid._sanitizeClassName) {
             return this.grid._sanitizeClassName(className);
         }
