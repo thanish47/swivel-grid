@@ -493,7 +493,6 @@ class SwivelGrid extends HTMLElement {
                 --border-color: #e1e5e9;
                 --hover-color: #f8f9fa;
                 --text-color: #24292f;
-                --star-color: #fbbf24;
             }
 
             .scroll-container {
@@ -527,26 +526,6 @@ class SwivelGrid extends HTMLElement {
                 margin: 0;
             }
 
-            .grid-image {
-                width: 100%;
-                max-height: 200px;
-                object-fit: cover;
-                border-radius: 4px;
-                margin-bottom: 12px;
-            }
-
-            .grid-image-placeholder {
-                width: 100%;
-                height: 120px;
-                background: #f6f8fa;
-                border: 2px dashed #d1d9e0;
-                border-radius: 4px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                color: #656d76;
-                margin-bottom: 12px;
-            }
 
             .grid-field {
                 margin-bottom: 8px;
@@ -628,47 +607,7 @@ class SwivelGrid extends HTMLElement {
                 background: var(--hover-color);
             }
 
-            .table-image {
-                width: 40px;
-                height: 40px;
-                object-fit: cover;
-                border-radius: 4px;
-            }
 
-            .table-image-placeholder {
-                width: 40px;
-                height: 40px;
-                background: #f6f8fa;
-                border: 1px dashed #d1d9e0;
-                border-radius: 4px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                font-size: 12px;
-                color: #656d76;
-            }
-
-            /* Rating Styles */
-            .rating {
-                display: inline-flex;
-                align-items: center;
-                gap: 2px;
-            }
-
-            .rating-star {
-                color: var(--star-color);
-                font-size: 16px;
-            }
-
-            .rating-star.empty {
-                color: #e1e5e9;
-            }
-
-            .rating-text {
-                margin-left: 4px;
-                font-size: 0.9em;
-                color: #656d76;
-            }
 
             /* Empty state */
             .empty-state {
@@ -836,17 +775,28 @@ class SwivelGrid extends HTMLElement {
     }
 
     _renderGridCard(row) {
-        const imageCol = this._schema.find(col => col.type === 'image');
-        const otherCols = this._schema.filter(col => col.type !== 'image');
+        // Use LayoutRendererExtension if available (preferred approach)
+        const layoutExtension = this.getExtension('layout-renderer');
+        if (layoutExtension && layoutExtension.enabled) {
+            return layoutExtension.renderGridCard(row);
+        }
+        
+        // Fallback implementation - find columns that might be images (by template or field name)
+        const imageCol = this._schema.find(col => 
+            (col.cellTemplate && col.cellTemplate.includes('renderImage')) ||
+            col.key.toLowerCase().includes('image') ||
+            col.key.toLowerCase().includes('photo') ||
+            col.key.toLowerCase().includes('avatar')
+        );
+        const otherCols = this._schema.filter(col => col !== imageCol);
         
         let content = '';
         
         if (imageCol) {
-            content += this._renderCellContent(row[imageCol.key], imageCol, true);
+            content += this._renderCellContent(row[imageCol.key], imageCol, true, row);
         }
 
         if (otherCols.length) {
-            const primaryField = otherCols[0];
             const labelId = `label-${Math.random().toString(36).substr(2, 9)}`;
             
             content += `
@@ -870,7 +820,13 @@ class SwivelGrid extends HTMLElement {
             row = {};
         }
         
-        // Optional: Use custom cell template if provided
+        // Use LayoutRendererExtension if available (preferred approach)
+        const layoutExtension = this.getExtension('layout-renderer');
+        if (layoutExtension && layoutExtension.enabled) {
+            return layoutExtension.renderCellContent(value, column, isGridImage, row);
+        }
+        
+        // Use custom cell template if provided
         if (column.cellTemplate) {
             return this._renderTemplate(column.cellTemplate, {
                 value,
@@ -879,8 +835,9 @@ class SwivelGrid extends HTMLElement {
                 isGridImage
             });
         }
-
-        // Default behavior: fallback to existing logic
+        
+        
+        // Handle null/undefined values
         if (value === null || value === undefined) {
             const placeholder = '—';
             if (column.cellClass) {
@@ -895,22 +852,12 @@ class SwivelGrid extends HTMLElement {
             }
             return placeholder;
         }
-
-        let content;
-        switch (column.type) {
-            case 'rating':
-                content = this._renderRating(value);
-                break;
-            case 'image':
-                content = this._renderImage(value, isGridImage);
-                break;
-            default:
-                content = this._escapeHtml(String(value));
-                break;
-        }
-
-        // Apply cellClass to default content (but not to special types like rating/image)
-        if (column.cellClass && column.type !== 'rating' && column.type !== 'image') {
+        
+        // Basic text rendering
+        let content = this._escapeHtml(String(value));
+        
+        // Apply cellClass to content
+        if (column.cellClass) {
             // Try to use CssClassesExtension first
             const cssClassesExtension = this.getExtension('css-classes');
             if (cssClassesExtension && cssClassesExtension.enabled) {
@@ -924,84 +871,6 @@ class SwivelGrid extends HTMLElement {
         return content;
     }
 
-    _renderRating(value) {
-        const rating = this._parseRating(value);
-        if (!rating.isValid) {
-            return '<span title="Invalid rating">—</span>';
-        }
-
-        const stars = [];
-        for (let i = 1; i <= rating.max; i++) {
-            const isFilled = i <= rating.value;
-            stars.push(`<span class="rating-star ${isFilled ? '' : 'empty'}">★</span>`);
-        }
-
-        return `
-            <div class="rating" aria-label="Rating: ${rating.value} out of ${rating.max}">
-                ${stars.join('')}
-                <span class="sr-only">Rating: ${rating.value} out of ${rating.max}</span>
-            </div>
-        `;
-    }
-
-    _renderImage(value, isGridImage = false) {
-        const image = this._parseImage(value);
-        const className = isGridImage ? 'grid-image' : 'table-image';
-        const placeholderClass = isGridImage ? 'grid-image-placeholder' : 'table-image-placeholder';
-        
-        if (!image.src) {
-            return `<div class="${placeholderClass}" title="No image">📷</div>`;
-        }
-
-        const id = `img-${Math.random().toString(36).slice(2)}`;
-        queueMicrotask(() => {
-            const img = this.shadowRoot?.getElementById(id);
-            if (img) img.addEventListener('error', () => {
-                img.outerHTML = `<div class="${placeholderClass}" title="Image failed to load">📷</div>`;
-            }, { once: true });
-        });
-        return `<img id="${id}" class="${className}" src="${this._escapeHtml(image.src)}" alt="${this._escapeHtml(image.alt)}" />`;
-    }
-
-    _parseRating(value) {
-        if (typeof value === 'object' && value !== null) {
-            return {
-                value: parseInt(value.value) || 0,
-                max: parseInt(value.max) || 5,
-                isValid: !isNaN(value.value)
-            };
-        }
-        
-        if (typeof value === 'string' && value.includes('/')) {
-            const [val, max] = value.split('/').map(s => parseInt(s.trim()));
-            return {
-                value: val || 0,
-                max: max || 5,
-                isValid: !isNaN(val) && !isNaN(max)
-            };
-        }
-        
-        const numValue = parseInt(value);
-        return {
-            value: numValue || 0,
-            max: 5,
-            isValid: !isNaN(numValue)
-        };
-    }
-
-    _parseImage(value) {
-        if (typeof value === 'object' && value !== null) {
-            return {
-                src: value.src || '',
-                alt: value.alt || 'Image'
-            };
-        }
-        
-        return {
-            src: String(value || ''),
-            alt: 'Image'
-        };
-    }
 
     _getSortClass(column) {
         const classes = [];
@@ -1089,23 +958,12 @@ class SwivelGrid extends HTMLElement {
     }
 
     _defaultSort(a, b, key) {
-        const column = this._schema.find(col => col.key === key);
-        const type = column?.type || 'text';
-
-        if (type === 'rating') {
-            const aRating = this._parseRating(a);
-            const bRating = this._parseRating(b);
-            const aRatio = aRating.isValid ? aRating.value / aRating.max : 0;
-            const bRatio = bRating.isValid ? bRating.value / bRating.max : 0;
-            return aRatio - bRatio;
+        // Use SortingExtension if available (preferred approach)
+        const sortingExtension = this.getExtension('sorting');
+        if (sortingExtension && sortingExtension.enabled) {
+            return sortingExtension.compareColumnValues(a, b, key);
         }
-
-        if (type === 'image') {
-            const aImg = this._parseImage(a);
-            const bImg = this._parseImage(b);
-            return aImg.src.localeCompare(bImg.src);
-        }
-
+        
         // Default text/numeric comparison
         if (typeof a === 'number' && typeof b === 'number') {
             return a - b;

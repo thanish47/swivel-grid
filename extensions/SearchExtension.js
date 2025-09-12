@@ -189,32 +189,34 @@ class SearchExtension extends BaseExtension {
                 const value = row[column.key];
                 if (value == null) return false;
 
-                // Handle different column types
-                switch (column.type) {
-                    case 'rating': {
-                        // Use ColumnTypesExtension if available
-                        const columnTypesExt = this.grid?.getExtension('column-types');
-                        if (columnTypesExt && columnTypesExt.enabled) {
-                            const rating = columnTypesExt.parseRating(value);
-                            return rating.isValid && 
-                                   (rating.value.toString().includes(searchTerm) ||
-                                    `${rating.value}/${rating.max}`.includes(searchTerm));
-                        }
-                        return String(value).toLowerCase().includes(searchTerm);
+                // Handle template-based search with TemplateExtension
+                const templateExt = this.grid?.getExtension('templates');
+                if (templateExt && templateExt.enabled && column.cellTemplate) {
+                    // Detect template type and search accordingly
+                    if (column.cellTemplate.includes('renderRating')) {
+                        const rating = templateExt.parseRating(value);
+                        return rating.isValid && 
+                               (rating.value.toString().includes(searchTerm) ||
+                                `${rating.value}/${rating.max}`.includes(searchTerm));
+                    } else if (column.cellTemplate.includes('renderImage')) {
+                        const image = templateExt.parseImage(value);
+                        return image.alt.toLowerCase().includes(searchTerm) ||
+                               image.src.toLowerCase().includes(searchTerm);
+                    } else if (column.cellTemplate.includes('formatDate')) {
+                        // Search in formatted date text
+                        const formattedDate = templateExt.formatDate ? templateExt.formatDate(value) : String(value);
+                        return formattedDate.toLowerCase().includes(searchTerm);
+                    } else if (column.cellTemplate.includes('formatNumber') || column.cellTemplate.includes('formatCurrency')) {
+                        // Search in formatted number/currency text
+                        const formattedValue = column.cellTemplate.includes('formatCurrency') ? 
+                            (templateExt.formatCurrency ? templateExt.formatCurrency(value) : String(value)) :
+                            (templateExt.formatNumber ? templateExt.formatNumber(value) : String(value));
+                        return formattedValue.toLowerCase().includes(searchTerm);
                     }
-                    case 'image': {
-                        // Use ColumnTypesExtension if available
-                        const columnTypesExt = this.grid?.getExtension('column-types');
-                        if (columnTypesExt && columnTypesExt.enabled) {
-                            const image = columnTypesExt.parseImage(value);
-                            return image.alt.toLowerCase().includes(searchTerm) ||
-                                   image.src.toLowerCase().includes(searchTerm);
-                        }
-                        return String(value).toLowerCase().includes(searchTerm);
-                    }
-                    default:
-                        return String(value).toLowerCase().includes(searchTerm);
                 }
+                
+                // Default text search
+                return String(value).toLowerCase().includes(searchTerm);
             });
         });
     }

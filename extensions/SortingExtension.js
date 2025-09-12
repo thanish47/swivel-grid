@@ -155,26 +155,36 @@ class SortingExtension extends BaseExtension {
         const column = gridState.schema.find(col => col.key === key);
         const type = column?.type || 'text';
 
-        // Use ColumnTypesExtension for special column type sorting if available
-        const columnTypesExtension = grid?.getExtension('column-types');
-        if (columnTypesExtension && columnTypesExtension.enabled && (type === 'rating' || type === 'image')) {
-            return columnTypesExtension.compareColumnValues(a, b, type);
+        // Use TemplateExtension for enhanced sorting capabilities
+        const templateExtension = grid?.getExtension('templates');
+        if (templateExtension && templateExtension.enabled) {
+            // Check if column uses templates that need special sorting
+            if (column?.cellTemplate) {
+                // Detect template type and sort accordingly
+                if (column.cellTemplate.includes('renderRating')) {
+                    const aRating = templateExtension.parseRating(a);
+                    const bRating = templateExtension.parseRating(b);
+                    const aRatio = aRating.isValid ? aRating.value / aRating.max : 0;
+                    const bRatio = bRating.isValid ? bRating.value / bRating.max : 0;
+                    return aRatio - bRatio;
+                } else if (column.cellTemplate.includes('renderImage')) {
+                    const aImg = templateExtension.parseImage(a);
+                    const bImg = templateExtension.parseImage(b);
+                    return aImg.alt.localeCompare(bImg.alt);
+                } else if (column.cellTemplate.includes('formatDate')) {
+                    // Handle date sorting
+                    const aDate = templateExtension.parseDate ? templateExtension.parseDate(a) : new Date(a);
+                    const bDate = templateExtension.parseDate ? templateExtension.parseDate(b) : new Date(b);
+                    return aDate - bDate;
+                } else if (column.cellTemplate.includes('formatNumber') || column.cellTemplate.includes('formatCurrency')) {
+                    // Handle numeric sorting
+                    const aNum = parseFloat(a) || 0;
+                    const bNum = parseFloat(b) || 0;
+                    return aNum - bNum;
+                }
+            }
         }
 
-        // Fallback to grid's implementation if available
-        if (grid._parseRating && type === 'rating') {
-            const aRating = grid._parseRating(a);
-            const bRating = grid._parseRating(b);
-            const aRatio = aRating.isValid ? aRating.value / aRating.max : 0;
-            const bRatio = bRating.isValid ? bRating.value / bRating.max : 0;
-            return aRatio - bRatio;
-        }
-
-        if (grid._parseImage && type === 'image') {
-            const aImg = grid._parseImage(a);
-            const bImg = grid._parseImage(b);
-            return aImg.src.localeCompare(bImg.src);
-        }
 
         // Default text/numeric comparison
         if (typeof a === 'number' && typeof b === 'number') {

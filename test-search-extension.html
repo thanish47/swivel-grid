@@ -58,7 +58,6 @@
     <script src="SwivelGrid.js"></script>
     <script src="extensions/BaseExtension.js"></script>
     <script src="extensions/LayoutRendererExtension.js"></script>
-    <script src="extensions/ColumnTypesExtension.js"></script>
     <script src="extensions/SortingExtension.js"></script>
     <script src="extensions/SearchExtension.js"></script>
 
@@ -181,8 +180,6 @@
             }
             
             if (!grid.hasExtension('column-types')) {
-                grid.registerExtension(new ColumnTypesExtension());
-                log('✓ ColumnTypesExtension loaded');
             }
             
             if (!grid.hasExtension('sorting')) {

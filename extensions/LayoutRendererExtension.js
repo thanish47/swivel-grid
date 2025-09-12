@@ -165,11 +165,43 @@ class LayoutRendererExtension extends BaseExtension {
      * @returns {string} Cell content HTML
      */
     renderCellContent(value, column, isGridImage = false, row = null) {
-        // Try to use ColumnTypesExtension first
+        // Handle null/empty rows from page gaps
+        if (!row || typeof row !== 'object') {
+            row = {};
+        }
+        
         const grid = this.getGrid();
-        const columnTypesExtension = grid?.getExtension('column-types');
-        if (columnTypesExtension && columnTypesExtension.enabled) {
-            return columnTypesExtension.renderCellContent(value, column, isGridImage, row);
+        
+        // Check for custom cell template first (preferred approach)
+        if (column.cellTemplate) {
+            const templateExtension = grid?.getExtension('templates');
+            if (templateExtension && templateExtension.enabled) {
+                return templateExtension.renderCellTemplate(
+                    column.cellTemplate,
+                    value,
+                    column,
+                    row,
+                    isGridImage
+                );
+            }
+        }
+        
+        // Handle legacy column types with automatic template conversion
+        if (column.type) {
+            console.warn(`Column type "${column.type}" is deprecated. Please use cellTemplate with helpers instead. See COLUMN_TYPES_TO_TEMPLATES_MIGRATION.md for migration guide.`);
+            
+            const templateExtension = grid?.getExtension('templates');
+            if (templateExtension && templateExtension.enabled) {
+                switch (column.type) {
+                    case 'rating':
+                        return templateExtension.renderRating(value, { isGridImage });
+                    case 'image':
+                        return templateExtension.renderImage(value, { isGridImage });
+                    default:
+                        // Fall through to basic rendering
+                        break;
+                }
+            }
         }
         
         // Fallback to grid's implementation
@@ -177,8 +209,21 @@ class LayoutRendererExtension extends BaseExtension {
             return this.grid._renderCellContent(value, column, isGridImage, row);
         }
         
-        // Basic fallback for text rendering
-        return this.escapeHtml(String(value || ''));
+        // Handle null/undefined values
+        if (value === null || value === undefined) {
+            const placeholder = '—';
+            return column.cellClass ? 
+                `<span class="${this.sanitizeClassName(column.cellClass)}">${placeholder}</span>` : 
+                placeholder;
+        }
+        
+        // Basic fallback for text rendering with cellClass support
+        let content = this.escapeHtml(String(value));
+        if (column.cellClass) {
+            content = `<span class="${this.sanitizeClassName(column.cellClass)}">${content}</span>`;
+        }
+        
+        return content;
     }
 
     /**
