@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PaginationExtension Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 20px; border: 1px solid #ddd; }
+        .controls { margin: 10px 0; }
+        button { margin: 5px; padding: 8px 12px; }
+        #output { margin-top: 10px; font-family: monospace; background: #f5f5f5; padding: 10px; max-height: 400px; overflow-y: auto; }
+        .grid-container { margin: 20px 0; }
+        .status { margin: 10px 0; padding: 10px; background: #e8f4f8; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <h1>PaginationExtension Test</h1>
+    
+    <div class="test-section">
+        <h2>Grid with Pagination Extension</h2>
+        <div class="controls">
+            <button onclick="loadAllExtensions()">Load All Extensions</button>
+            <button onclick="loadPaginationOnly()">Load Pagination Only</button>
+            <button onclick="unloadPagination()">Unload Pagination</button>
+            <button onclick="switchToTable()">Switch to Table</button>
+            <button onclick="switchToGrid()">Switch to Grid</button>
+            <button onclick="testBasicPagination()">Test Basic Pagination</button>
+            <button onclick="testInfiniteScroll()">Test Infinite Scroll</button>
+            <button onclick="testPageData()">Test Page Data</button>
+            <button onclick="testAppendData()">Test Append Data</button>
+        </div>
+        <div class="status" id="paginationStatus">Pagination extension not loaded</div>
+        <div class="grid-container">
+            <swivel-grid id="testGrid"></swivel-grid>
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Test Output</h2>
+        <div id="output"></div>
+    </div>
+
+    <!-- Load scripts -->
+    <script src="SwivelGrid.js"></script>
+    <script src="extensions/BaseExtension.js"></script>
+    <script src="extensions/LayoutRendererExtension.js"></script>
+    <script src="extensions/ColumnTypesExtension.js"></script>
+    <script src="extensions/SortingExtension.js"></script>
+    <script src="extensions/SearchExtension.js"></script>
+    <script src="extensions/TemplateExtension.js"></script>
+    <script src="extensions/PaginationExtension.js"></script>
+
+    <script>
+        const grid = document.getElementById('testGrid');
+        const output = document.getElementById('output');
+        const paginationStatus = document.getElementById('paginationStatus');
+        
+        function log(message) {
+            output.innerHTML += new Date().toLocaleTimeString() + ': ' + message + '<br>';
+            console.log(message);
+            output.scrollTop = output.scrollHeight;
+        }
+        
+        function updatePaginationStatus() {
+            const paginationExt = grid.getExtension('pagination');
+            if (paginationExt && paginationExt.enabled) {
+                const state = paginationExt.getPaginationState();
+                paginationStatus.innerHTML = `
+                    <strong>Pagination Extension Active</strong><br>
+                    Page Size: ${state.pageSize}<br>
+                    Current Page: ${state.currentPage}<br>
+                    Total Pages: ${state.totalPages || 'Not set'}<br>
+                    Loading: ${state.loading ? 'Yes' : 'No'}<br>
+                    End Reached: ${state.endReached ? 'Yes' : 'No'}
+                `;
+                paginationStatus.style.background = '#d4edda';
+            } else {
+                paginationStatus.textContent = 'Pagination extension not loaded';
+                paginationStatus.style.background = '#f8d7da';
+            }
+        }
+        
+        // Initialize grid with test data
+        function initializeGrid() {
+            // Generate more test data for pagination testing
+            const data = [];
+            for (let i = 1; i <= 250; i++) {
+                data.push({
+                    id: i,
+                    name: `User ${i}`,
+                    email: `user${i}@example.com`,
+                    category: ['Engineering', 'Design', 'Marketing', 'Sales'][i % 4],
+                    score: Math.floor(Math.random() * 100),
+                    status: ['Active', 'Inactive', 'Pending'][i % 3]
+                });
+            }
+            
+            grid.schema = [
+                { key: 'id', label: 'ID' },
+                { key: 'name', label: 'Name' },
+                { key: 'email', label: 'Email' },
+                { key: 'category', label: 'Category' },
+                { key: 'score', label: 'Score' },
+                { key: 'status', label: 'Status' }
+            ];
+            
+            grid.setData(data);
+            
+            log('Grid initialized with 250 rows for pagination testing');
+            updatePaginationStatus();
+        }
+        
+        function loadAllExtensions() {
+            // Load all extensions
+            if (!grid.hasExtension('layout-renderer')) {
+                grid.registerExtension(new LayoutRendererExtension());
+                log('✓ LayoutRendererExtension loaded');
+            }
+            
+            if (!grid.hasExtension('column-types')) {
+                grid.registerExtension(new ColumnTypesExtension());
+                log('✓ ColumnTypesExtension loaded');
+            }
+            
+            if (!grid.hasExtension('sorting')) {
+                grid.registerExtension(new SortingExtension());
+                log('✓ SortingExtension loaded');
+            }
+            
+            if (!grid.hasExtension('search')) {
+                grid.registerExtension(new SearchExtension());
+                log('✓ SearchExtension loaded');
+            }
+            
+            if (!grid.hasExtension('templates')) {
+                grid.registerExtension(new TemplateExtension());
+                log('✓ TemplateExtension loaded');
+            }
+            
+            if (!grid.hasExtension('pagination')) {
+                grid.registerExtension(new PaginationExtension());
+                log('✓ PaginationExtension loaded');
+            }
+            
+            log(`Total extensions: ${grid.listExtensions().length}`);
+            grid.render();
+            updatePaginationStatus();
+            log('Grid re-rendered with all extensions');
+        }
+        
+        function loadPaginationOnly() {
+            // Unload other extensions to test pagination independently
+            grid.unregisterExtension('column-types');
+            grid.unregisterExtension('sorting');
+            grid.unregisterExtension('search');
+            grid.unregisterExtension('templates');
+            
+            if (!grid.hasExtension('pagination')) {
+                grid.registerExtension(new PaginationExtension());
+                log('✓ PaginationExtension loaded (standalone)');
+            }
+            
+            grid.render();
+            updatePaginationStatus();
+            log('Grid re-rendered with PaginationExtension only');
+        }
+        
+        function unloadPagination() {
+            const success = grid.unregisterExtension('pagination');
+            if (success) {
+                log('✓ PaginationExtension unloaded');
+                grid.render();
+                updatePaginationStatus();
+                log('Grid re-rendered without pagination functionality');
+            } else {
+                log('✗ Failed to unload PaginationExtension');
+            }
+        }
+        
+        function switchToTable() {
+            grid.layoutType = 'table';
+            log('Switched to table layout');
+        }
+        
+        function switchToGrid() {
+            grid.layoutType = 'grid';
+            log('Switched to grid layout');
+        }
+        
+        function testBasicPagination() {
+            log('=== Testing Basic Pagination ===');
+            
+            const paginationExt = grid.getExtension('pagination');
+            if (!paginationExt) {
+                log('✗ PaginationExtension not loaded');
+                return;
+            }
+            
+            // Set page size and total pages
+            grid.pageSize = 20;
+            grid.totalPages = 10;
+            
+            log('Set page size to 20 and total pages to 10');
+            updatePaginationStatus();
+            
+            // Test page handlers
+            grid.pageUpHandler = (page) => {
+                log(`📤 Page up event: Page ${page}`);
+            };
+            
+            grid.pageDownHandler = (page) => {
+                log(`📥 Page down event: Page ${page}`);
+            };
+            
+            log('Page handlers configured');
+        }
+        
+        function testInfiniteScroll() {
+            log('=== Testing Infinite Scroll ===');
+            
+            const paginationExt = grid.getExtension('pagination');
+            if (!paginationExt) {
+                log('✗ PaginationExtension not loaded');
+                return;
+            }
+            
+            // Set up infinite scroll
+            grid.pageSize = 50;
+            grid.totalPages = 5; // 5 pages total
+            grid.loading = false;
+            
+            let currentLoadPage = 1;
+            grid.loadMoreCallback = () => {
+                log(`🔄 Load more callback triggered for page ${currentLoadPage + 1}`);
+                grid.loading = true;
+                
+                // Simulate async data loading
+                setTimeout(() => {
+                    const newData = [];
+                    const startId = currentLoadPage * 50 + 1;
+                    for (let i = 0; i < 50; i++) {
+                        newData.push({
+                            id: startId + i,
+                            name: `User ${startId + i}`,
+                            email: `user${startId + i}@example.com`,
+                            category: ['Engineering', 'Design', 'Marketing', 'Sales'][(startId + i) % 4],
+                            score: Math.floor(Math.random() * 100),
+                            status: ['Active', 'Inactive', 'Pending'][(startId + i) % 3]
+                        });
+                    }
+                    
+                    grid.setPageData(newData, currentLoadPage + 1);
+                    currentLoadPage++;
+                    log(`✓ Loaded page ${currentLoadPage}, total rows: ${grid.rows.length}`);
+                    updatePaginationStatus();
+                }, 1000);
+            };
+            
+            log('Infinite scroll configured - scroll to bottom to trigger loading');
+            updatePaginationStatus();
+        }
+        
+        function testPageData() {
+            log('=== Testing Page Data Methods ===');
+            
+            const paginationExt = grid.getExtension('pagination');
+            if (!paginationExt) {
+                log('✗ PaginationExtension not loaded');
+                return;
+            }
+            
+            // Test setPageData with specific page number
+            const pageData = [
+                { id: 1001, name: 'Page User 1', email: 'page1@example.com', category: 'Test', score: 95, status: 'Active' },
+                { id: 1002, name: 'Page User 2', email: 'page2@example.com', category: 'Test', score: 87, status: 'Active' },
+                { id: 1003, name: 'Page User 3', email: 'page3@example.com', category: 'Test', score: 92, status: 'Active' }
+            ];
+            
+            grid.setPageData(pageData, 3); // Set data for page 3
+            log('✓ Set data for page 3 using setPageData()');
+            updatePaginationStatus();
+        }
+        
+        function testAppendData() {
+            log('=== Testing Append Data ===');
+            
+            const paginationExt = grid.getExtension('pagination');
+            if (!paginationExt) {
+                log('✗ PaginationExtension not loaded');
+                return;
+            }
+            
+            // Test appendData
+            const appendedData = [
+                { id: 2001, name: 'Appended User 1', email: 'append1@example.com', category: 'Appended', score: 88, status: 'Active' },
+                { id: 2002, name: 'Appended User 2', email: 'append2@example.com', category: 'Appended', score: 91, status: 'Active' }
+            ];
+            
+            grid.appendData(appendedData);
+            log('✓ Appended 2 new rows using appendData()');
+            updatePaginationStatus();
+        }
+        
+        function testEventListeners() {
+            log('=== Testing Pagination Events ===');
+            
+            // Listen for pagination events
+            grid.addEventListener('swivel:pageUp', (e) => {
+                log(`🎯 Event: pageUp - Page ${e.detail.pageNumber}`);
+            });
+            
+            grid.addEventListener('swivel:pageDown', (e) => {
+                log(`🎯 Event: pageDown - Page ${e.detail.pageNumber}`);
+            });
+            
+            grid.addEventListener('swivel:pageThreshold', (e) => {
+                log(`🎯 Event: pageThreshold - Page ${e.detail.pageNumber}, Next: ${e.detail.nextPage}`);
+            });
+            
+            log('Event listeners configured');
+        }
+        
+        // Initialize when page loads
+        window.addEventListener('load', () => {
+            initializeGrid();
+            testEventListeners();
+            
+            // Auto-load extensions after a short delay
+            setTimeout(loadAllExtensions, 1000);
+            
+            // Auto-test basic pagination
+            setTimeout(testBasicPagination, 2000);
+        });
+        
+        // Update pagination status periodically
+        setInterval(updatePaginationStatus, 3000);
+    </script>
+</body>
+</html>

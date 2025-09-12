@@ -23,25 +23,10 @@ class SwivelGrid extends HTMLElement {
         
         // Property handlers
         this._sortHandler = null;
-        this._pageUpHandler = null;
-        this._pageDownHandler = null;
         this._searchHandler = null;
-        
-        // Infinite scroll properties
-        this._pageSize = 100;
-        this._totalPages = null;
-        this._currentPage = 1;
-        this._loading = false;
-        this._loadMoreCallback = null;
-        this._endReached = false;
-        this._lastTriggeredPage = 0;
-        this._intersectionObserver = null;
         
         // Internal bindings
         this._searchInputListener = null;
-        this._scrollContainer = null;
-        this._isScrolling = false;
-        this._onScroll = this._handleScroll.bind(this);
         
         // Extension system
         this._extensions = new Map();
@@ -91,35 +76,8 @@ class SwivelGrid extends HTMLElement {
     get sortHandler() { return this._sortHandler; }
     set sortHandler(value) { this._sortHandler = typeof value === 'function' ? value : null; }
 
-    get pageUpHandler() { return this._pageUpHandler; }
-    set pageUpHandler(value) { this._pageUpHandler = typeof value === 'function' ? value : null; }
-
-    get pageDownHandler() { return this._pageDownHandler; }
-    set pageDownHandler(value) { this._pageDownHandler = typeof value === 'function' ? value : null; }
-
-    get pageSize() { return this._pageSize; }
-    set pageSize(value) { 
-        this._pageSize = typeof value === 'number' && value > 0 ? value : 100;
-        this._updateCurrentPage();
-    }
-
-    get totalPages() { return this._totalPages; }
-    set totalPages(value) { 
-        this._totalPages = typeof value === 'number' && value > 0 ? value : null;
-        this._endReached = false; // Reset end flag when totalPages changes
-    }
-
-    get loading() { return this._loading; }
-    set loading(value) { 
-        this._loading = Boolean(value);
-        this._updateLoadMoreSection();
-    }
-
-    get loadMoreCallback() { return this._loadMoreCallback; }
-    set loadMoreCallback(value) { 
-        this._loadMoreCallback = typeof value === 'function' ? value : null;
-        this._updateLoadMoreSection();
-    }
+    // Pagination properties are now handled by PaginationExtension
+    // Getters/setters will be added by the extension when loaded
 
     get searchHandler() { return this._searchHandler; }
     set searchHandler(value) { this._searchHandler = typeof value === 'function' ? value : null; }
@@ -361,7 +319,6 @@ class SwivelGrid extends HTMLElement {
 
     disconnectedCallback() {
         this._unbindSearchInput();
-        this._unbindScrollListeners();
         
         // Cleanup extensions
         for (const extension of this._extensions.values()) {
@@ -398,96 +355,9 @@ class SwivelGrid extends HTMLElement {
         this._searchInputListener = null;
     }
 
-    _bindScrollListeners() {
-        this._unbindScrollListeners();
-        
-        this._scrollContainer = this.shadowRoot.querySelector('.scroll-container');
-        if (this._scrollContainer) {
-            this._scrollContainer.addEventListener('scroll', this._onScroll);
-        }
-    }
+    // Scroll listeners are now handled by PaginationExtension
 
-    _unbindScrollListeners() {
-        if (this._scrollContainer) {
-            this._scrollContainer.removeEventListener('scroll', this._onScroll);
-        }
-        this._scrollContainer = null;
-    }
-
-    _handleScroll() {
-        if (this._isScrolling) return;
-        
-        this._isScrolling = true;
-        requestAnimationFrame(() => {
-            // Get visible row indices using existing robust calculation
-            let visibleStartIndex = 0;
-            let visibleEndIndex = Math.max(0, this._rows.length - 1);
-            
-            const container = this._scrollContainer;
-            if (this._layoutType === 'table') {
-                const rows = container.querySelectorAll('tbody tr');
-                if (rows.length > 0) {
-                    const containerRect = container.getBoundingClientRect();
-                    for (let i = 0; i < rows.length; i++) {
-                        const rowRect = rows[i].getBoundingClientRect();
-                        if (rowRect.bottom > containerRect.top) {
-                            visibleStartIndex = i;
-                            break;
-                        }
-                    }
-                    for (let i = rows.length - 1; i >= 0; i--) {
-                        const rowRect = rows[i].getBoundingClientRect();
-                        if (rowRect.top < containerRect.bottom) {
-                            visibleEndIndex = i;
-                            break;
-                        }
-                    }
-                }
-            } else {
-                const cards = container.querySelectorAll('.grid-card');
-                if (cards.length > 0) {
-                    const containerRect = container.getBoundingClientRect();
-                    for (let i = 0; i < cards.length; i++) {
-                        const cardRect = cards[i].getBoundingClientRect();
-                        if (cardRect.bottom > containerRect.top) {
-                            visibleStartIndex = i;
-                            break;
-                        }
-                    }
-                    for (let i = cards.length - 1; i >= 0; i--) {
-                        const cardRect = cards[i].getBoundingClientRect();
-                        if (cardRect.top < containerRect.bottom) {
-                            visibleEndIndex = i;
-                            break;
-                        }
-                    }
-                }
-            }
-            
-            // Calculate page based purely on visible indices
-            const visibleMidpoint = Math.floor((visibleStartIndex + visibleEndIndex) / 2);
-            const currentPage = Math.max(1, Math.ceil((visibleMidpoint + 1) / this._pageSize));
-            
-            // Check for page changes
-            if (currentPage !== this._currentPage) {
-                const oldPage = this._currentPage;
-                this._currentPage = currentPage;
-                
-                if (currentPage > oldPage) {
-                    this._pageDownHandler?.(currentPage);
-                    this._dispatchEvent('pageDown', { pageNumber: currentPage });
-                } else if (currentPage < oldPage) {
-                    this._pageUpHandler?.(currentPage);
-                    this._dispatchEvent('pageUp', { pageNumber: currentPage });
-                }
-            }
-            
-            // Check 80% threshold for preloading (index-based)
-            this._checkThresholdTrigger(currentPage, visibleEndIndex);
-            
-            this._isScrolling = false;
-        });
-    }
+    // Scroll handling is now handled by PaginationExtension
 
     _dispatchEvent(type, detail) {
         this.dispatchEvent(new CustomEvent(`swivel:${type}`, {
@@ -500,102 +370,29 @@ class SwivelGrid extends HTMLElement {
     // Public methods
     setData(rows) {
         this._rows = Array.isArray(rows) ? [...rows] : [];
-        this._currentPage = 1;
+        
+        // Reset pagination state if extension is loaded
+        const paginationExtension = this.getExtension('pagination');
+        if (paginationExtension && paginationExtension.enabled) {
+            paginationExtension.resetPaginationState();
+        }
+        
         this.render();
         this._dispatchEvent('data', { type: 'set', length: this._rows.length });
     }
 
-    setPageData(data, pageNumber) {
-        if (!Array.isArray(data)) return;
-        
-        if (pageNumber !== undefined && typeof pageNumber === 'number' && pageNumber >= 1) {
-            // Replace specific page data
-            const startIndex = (pageNumber - 1) * this._pageSize;
-            
-            // Fill gaps with empty objects instead of null to prevent render errors
-            while (this._rows.length < startIndex) {
-                this._rows.push({}); // Empty object instead of null
-            }
-            
-            // Replace page data
-            this._rows.splice(startIndex, this._pageSize, ...data);
-            
-            this.render();
-            this._dispatchEvent('data', { type: 'page-set', pageNumber, length: this._rows.length });
-        } else {
-            // Append data as new page
-            this._rows.push(...data);
-            this._currentPage = Math.ceil(this._rows.length / this._pageSize);
-            
-            // Check if sorting is active - if so, we need to handle page boundaries carefully
-            const activeSort = this._schema.find(col => col.sort);
-            if (activeSort) {
-                // Don't perform client-side sorting when pagination is active
-                const isPaginationActive = this._totalPages !== null;
-                if (isPaginationActive) {
-                    console.warn('SwivelGrid: Client-side sorting disabled when pagination is active. New page data not sorted locally.');
-                    this._renderAppendedRows(data);
-                } else {
-                    // Try to use SortingExtension first
-                    const sortingExtension = this.getExtension('sorting');
-                    if (sortingExtension && sortingExtension.enabled) {
-                        sortingExtension.sortData(activeSort.key, activeSort.sort, activeSort.sortComparator);
-                        this.render();
-                    } else {
-                        // Fallback to core implementation
-                        this._sortData(activeSort.key, activeSort.sort, activeSort.sortComparator);
-                        this.render();
-                    }
-                }
-            } else {
-                this._renderAppendedRows(data);
-            }
-            
-            this._dispatchEvent('data', { type: 'page-append', length: this._rows.length });
-        }
-        
-        // Reset loading and threshold flags
-        this._loading = false;
-        this._lastTriggeredPage = 0;
-        this._updateCurrentPage();
-    }
-
-    appendData(rows) {
-        if (!Array.isArray(rows) || rows.length === 0) return;
-        
-        this._rows.push(...rows);
-        
-        // If there's an active sort, check if we can re-sort
-        const activeSort = this._schema.find(col => col.sort);
-        if (activeSort) {
-            // Don't perform client-side sorting when pagination is active
-            const isPaginationActive = this._totalPages !== null;
-            if (isPaginationActive) {
-                console.warn('SwivelGrid: Client-side sorting disabled when pagination is active. Appended data not sorted locally.');
-                this._renderAppendedRows(rows);
-            } else {
-                // Try to use SortingExtension first
-                const sortingExtension = this.getExtension('sorting');
-                if (sortingExtension && sortingExtension.enabled) {
-                    sortingExtension.sortData(activeSort.key, activeSort.sort, activeSort.sortComparator);
-                    this.render();
-                } else {
-                    // Fallback to core implementation
-                    this._sortData(activeSort.key, activeSort.sort, activeSort.sortComparator);
-                    this.render();
-                }
-            }
-        } else {
-            // Otherwise, just append the new rows
-            this._renderAppendedRows(rows);
-        }
-        
-        this._dispatchEvent('data', { type: 'append', added: rows.length, length: this._rows.length });
-    }
+    // setPageData and appendData are now handled by PaginationExtension
+    // These methods will be added to the grid instance when the extension loads
 
     destroy() {
         this._unbindSearchInput();
-        this._unbindScrollListeners();
+        
+        // Destroy all extensions
+        this._extensions.forEach(extension => {
+            if (extension.onDestroy) {
+                extension.onDestroy();
+            }
+        });
     }
 
     render() {
@@ -606,11 +403,7 @@ class SwivelGrid extends HTMLElement {
             schema: this._schema,
             rows: this._rows,
             layoutType: this._layoutType,
-            searchInput: this._searchInput,
-            loading: this._loading,
-            currentPage: this._currentPage,
-            pageSize: this._pageSize,
-            totalPages: this._totalPages
+            searchInput: this._searchInput
         };
         
         // Execute beforeRender hooks
@@ -636,11 +429,9 @@ class SwivelGrid extends HTMLElement {
             </style>
             <div class="scroll-container">
                 ${context.layoutHTML || this._renderLayout()}
-                ${this._renderLoadMore()}
+                ${context.loadMoreHTML || ''}
             </div>
         `;
-        
-        this._bindScrollListeners();
         
         // Sort listeners are now handled by SortingExtension in afterRender hook
         // Fallback for when SortingExtension is not loaded
@@ -648,9 +439,6 @@ class SwivelGrid extends HTMLElement {
         if (!sortingExtension || !sortingExtension.enabled) {
             this._attachSortListeners();
         }
-        
-        this._bindLoadMoreEvents();
-        this._updateCurrentPage();
         
         // Execute afterRender hooks
         const renderedElement = this.shadowRoot.querySelector('.scroll-container');
@@ -1009,11 +797,7 @@ class SwivelGrid extends HTMLElement {
                                 <th class="${this._getSortClass(col)}" 
                                     data-key="${col.key}"
                                     style="${this._getColumnStyles(col)}"
-                                    role="columnheader"
-                                    scope="col"
-                                    tabindex="${col.sortable === false ? '-1' : '0'}"
-                                    aria-sort="${col.sort === 'ASC' ? 'ascending' : col.sort === 'DESC' ? 'descending' : 'none'}"
-                                    aria-disabled="${col.sortable === false ? 'true' : 'false'}">
+                                    ${this._getHeaderARIA(col)}>
                                     ${this._renderHeaderContent(col)}
                                 </th>
                             `).join('')}
@@ -1041,9 +825,9 @@ class SwivelGrid extends HTMLElement {
 
     _renderGrid() {
         return `
-            <div class="grid-container" role="list">
+            <div class="grid-container" ${this._getContainerARIA('grid').container}>
                 ${this._rows.map(row => `
-                    <div class="grid-card" role="listitem">
+                    <div class="grid-card" ${this._getContainerARIA('grid').item}>
                         ${this._renderGridCard(row)}
                     </div>
                 `).join('')}
@@ -1066,7 +850,7 @@ class SwivelGrid extends HTMLElement {
             const labelId = `label-${Math.random().toString(36).substr(2, 9)}`;
             
             content += `
-                <section role="group" aria-labelledby="${labelId}">
+                <section ${this._getContainerARIA('grid').group} aria-labelledby="${labelId}">
                     ${otherCols.map((col, index) => `
                         <div class="grid-field">
                             <span class="grid-field-label" ${index === 0 ? `id="${labelId}"` : ''}>${this._renderHeaderContent(col, true)}:</span>
@@ -1229,12 +1013,7 @@ class SwivelGrid extends HTMLElement {
             header.addEventListener('click', (e) => {
                 this._handleSort(e.currentTarget.dataset.key);
             });
-            header.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    this._handleSort(e.currentTarget.dataset.key);
-                }
-            });
+            // Keyboard navigation is now handled by AccessibilityExtension
         });
     }
 
@@ -1252,7 +1031,9 @@ class SwivelGrid extends HTMLElement {
         });
 
         // Check if pagination is active (server-side data)
-        const isPaginationActive = this._totalPages !== null;
+        const paginationExtension = this.getExtension('pagination');
+        const isPaginationActive = paginationExtension && paginationExtension.enabled && 
+                                 paginationExtension.getPaginationState().totalPages !== null;
         
         if (isPaginationActive) {
             // For server-side pagination, do NOT perform local sorting
@@ -1260,9 +1041,9 @@ class SwivelGrid extends HTMLElement {
             console.warn('SwivelGrid: Client-side sorting disabled when pagination is active. Sorting should be handled server-side via sortHandler.');
         } else {
             // Reset paging when sorting (only for client-side data)
-            this._currentPage = 1;
-            this._lastTriggeredPage = 0;
-            this._endReached = false;
+            if (paginationExtension && paginationExtension.enabled) {
+                paginationExtension.resetPaginationState();
+            }
             
             // Sort the data (client-side only)
             this._sortData(key, newDirection, column.sortComparator);
@@ -1404,92 +1185,55 @@ class SwivelGrid extends HTMLElement {
         return typeof s === 'string' ? s.split(/\s+/).map(t => t.replace(/[^\w-]/g, '')).join(' ') : '';
     }
 
-    _updateCurrentPage() {
-        if (this._rows.length === 0) {
-            this._currentPage = 1;
-        } else {
-            this._currentPage = Math.ceil(this._rows.length / this._pageSize);
+    /**
+     * Get header ARIA attributes (uses AccessibilityExtension if available)
+     * @param {Object} column - Column configuration
+     * @returns {string} ARIA attributes
+     */
+    _getHeaderARIA(column) {
+        const accessibilityExtension = this.getExtension('accessibility');
+        if (accessibilityExtension && accessibilityExtension.enabled) {
+            return accessibilityExtension.generateHeaderARIA(column);
         }
-        this._updateLoadMoreSection();
+        
+        // Fallback implementation
+        return [
+            'role="columnheader"',
+            'scope="col"',
+            `tabindex="${column.sortable === false ? '-1' : '0'}"`,
+            `aria-sort="${column.sort === 'ASC' ? 'ascending' : column.sort === 'DESC' ? 'descending' : 'none'}"`,
+            `aria-disabled="${column.sortable === false ? 'true' : 'false'}"`
+        ].join(' ');
     }
 
-    _updateLoadMoreSection() {
-        const loadMoreSection = this.shadowRoot?.querySelector('.load-more-section');
-        if (loadMoreSection) {
-            loadMoreSection.innerHTML = this._getLoadMoreContent();
-            this._bindLoadMoreEvents();
+    /**
+     * Get container ARIA attributes (uses AccessibilityExtension if available)
+     * @param {string} layoutType - Layout type
+     * @returns {Object} ARIA attributes
+     */
+    _getContainerARIA(layoutType) {
+        const accessibilityExtension = this.getExtension('accessibility');
+        if (accessibilityExtension && accessibilityExtension.enabled) {
+            return accessibilityExtension.generateContainerARIA(layoutType);
         }
+        
+        // Fallback implementation
+        if (layoutType === 'grid') {
+            return {
+                container: 'role="list"',
+                item: 'role="listitem"',
+                group: 'role="group"'
+            };
+        }
+        
+        return {
+            container: 'role="table"',
+            item: '',
+            group: ''
+        };
     }
 
-    _renderLoadMore() {
-        // Only show load more section if totalPages is set and we haven't reached the end
-        if (this._totalPages && this._currentPage < this._totalPages) {
-            return `<div class="load-more-section">${this._getLoadMoreContent()}</div>`;
-        }
-        return '';
-    }
-
-    _getLoadMoreContent() {
-        if (this._loading) {
-            return '<div class="spinner"></div>Loading more...';
-        }
-        
-        if (this._loadMoreCallback) {
-            return '<button class="load-more-button" id="load-more-btn">Load More</button>';
-        }
-        
-        return '<div style="color: #6c757d;">Scroll to load more content</div>';
-    }
-
-    _bindLoadMoreEvents() {
-        const loadMoreBtn = this.shadowRoot?.getElementById('load-more-btn');
-        if (loadMoreBtn && this._loadMoreCallback) {
-            loadMoreBtn.addEventListener('click', () => {
-                this._loadMoreCallback();
-            });
-        }
-    }
-
-    _checkThresholdTrigger(currentPage, visibleEndIndex) {
-        // Skip if loading, end reached, or already triggered this page
-        if (this._loading || this._endReached || currentPage === this._lastTriggeredPage) {
-            return;
-        }
-        
-        // Skip if we've reached totalPages
-        if (this._totalPages && currentPage >= this._totalPages) {
-            this._endReached = true;
-            return;
-        }
-        
-        const pageStartIndex = (currentPage - 1) * this._pageSize;
-        const pageEndIndex = Math.min(pageStartIndex + this._pageSize, this._rows.length);
-        const pageSize = pageEndIndex - pageStartIndex;
-        
-        // Guard against division by zero or empty pages
-        if (pageSize <= 0) return;
-        
-        const progressInPage = Math.max(0, visibleEndIndex - pageStartIndex);
-        const pageProgressPercent = Math.min(1, progressInPage / pageSize);
-        
-        if (pageProgressPercent >= 0.8) {
-            this._lastTriggeredPage = currentPage;
-            const nextPage = currentPage + 1;
-            
-            // Dispatch threshold event
-            this._dispatchEvent('pageThreshold', { 
-                pageNumber: currentPage, 
-                threshold: 0.8, 
-                nextPage 
-            });
-            
-            // Auto-prefetch if callback is set
-            if (this._loadMoreCallback && (!this._totalPages || nextPage <= this._totalPages)) {
-                this._loading = true;
-                this._loadMoreCallback();
-            }
-        }
-    }
+    // Pagination UI and threshold methods are now handled by PaginationExtension
 
     _processSchema(schema) {
         if (!Array.isArray(schema)) return [];
