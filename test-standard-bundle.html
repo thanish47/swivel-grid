@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StandardBundle Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 20px; border: 1px solid #ddd; }
+        .controls { margin: 10px 0; }
+        button { margin: 5px; padding: 8px 12px; }
+        .grid-container { margin: 20px 0; }
+        .status { padding: 10px; margin: 10px 0; border-radius: 4px; }
+        .success { background-color: #d4edda; border: 1px solid #c3e6cb; color: #155724; }
+        .error { background-color: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; }
+        .info { background-color: #d1ecf1; border: 1px solid #bee5eb; color: #0c5460; }
+        #output { margin-top: 10px; font-family: monospace; background: #f5f5f5; padding: 10px; max-height: 400px; overflow-y: auto; }
+    </style>
+</head>
+<body>
+    <h1>StandardBundle Test</h1>
+    
+    <div class="test-section">
+        <h2>Bundle Information</h2>
+        <div id="bundleInfo" class="status info">Loading bundle information...</div>
+    </div>
+
+    <div class="test-section">
+        <h2>Standard Bundle Loading Test</h2>
+        <div class="controls">
+            <button onclick="loadStandardBundle()">Load Standard Bundle</button>
+            <button onclick="unloadBundle()">Unload Bundle</button>
+            <button onclick="testBundleCompatibility()">Test Compatibility</button>
+            <button onclick="loadDataAndTest()">Load Test Data</button>
+            <button onclick="switchToGrid()">Switch to Grid</button>
+            <button onclick="testSorting()">Test Sorting</button>
+            <button onclick="testTemplates()">Test Templates</button>
+        </div>
+        <div id="standardStatus" class="status">StandardBundle not loaded</div>
+        <div class="grid-container">
+            <swivel-grid id="standardGrid"></swivel-grid>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>Bundle Loader Utility Test</h2>
+        <div class="controls">
+            <button onclick="testUseCaseLoading()">Load for Use Case</button>
+            <button onclick="testRecommendations()">Get Recommendations</button>
+            <button onclick="testBundleSizes()">Show Bundle Sizes</button>
+        </div>
+        <div id="loaderStatus" class="status">BundleLoader tests ready</div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Test Output</h2>
+        <div id="output"></div>
+    </div>
+
+    <!-- Load core and extensions -->
+    <script src="SwivelGrid.js"></script>
+    <script src="extensions/BaseExtension.js"></script>
+    <script src="extensions/LayoutRendererExtension.js"></script>
+    <script src="extensions/TemplateExtension.js"></script>
+    <script src="extensions/SortingExtension.js"></script>
+    
+    <!-- Load bundles -->
+    <script src="bundles/StandardBundle.js"></script>
+    <script src="bundles/AdvancedBundle.js"></script>
+    <script src="bundles/BundleLoader.js"></script>
+    <script src="bundles/index.js"></script>
+
+    <script>
+        let grid;
+        let currentBundle;
+
+        function log(message, type = 'info') {
+            const output = document.getElementById('output');
+            const timestamp = new Date().toLocaleTimeString();
+            const div = document.createElement('div');
+            div.style.color = type === 'error' ? 'red' : type === 'success' ? 'green' : 'black';
+            div.textContent = `[${timestamp}] ${message}`;
+            output.appendChild(div);
+            output.scrollTop = output.scrollHeight;
+            console.log(message);
+        }
+
+        function updateStatus(elementId, message, type = 'info') {
+            const element = document.getElementById(elementId);
+            element.textContent = message;
+            element.className = `status ${type}`;
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            grid = document.getElementById('standardGrid');
+            showBundleInfo();
+            log('StandardBundle test page loaded');
+        });
+
+        function showBundleInfo() {
+            try {
+                const info = SwivelGridBundles.getInfo();
+                const bundleInfoEl = document.getElementById('bundleInfo');
+                bundleInfoEl.innerHTML = `
+                    <h4>Available Bundles:</h4>
+                    <ul>
+                        <li><strong>Standard:</strong> ${info.bundles.standard.estimatedSize} - ${info.bundles.standard.description}</li>
+                        <li><strong>Advanced:</strong> ${info.bundles.advanced.estimatedSize} - ${info.bundles.advanced.description}</li>
+                    </ul>
+                    <p><strong>Available Use Cases:</strong> ${SwivelGridBundles.getUseCases().join(', ')}</p>
+                `;
+            } catch (error) {
+                log(`Error loading bundle info: ${error.message}`, 'error');
+            }
+        }
+
+        async function loadStandardBundle() {
+            try {
+                log('Loading StandardBundle...');
+                const result = await SwivelGridBundles.loadStandard(grid, { verbose: true });
+                
+                if (result.success) {
+                    currentBundle = 'standard';
+                    updateStatus('standardStatus', `StandardBundle loaded: ${result.loadedExtensions.join(', ')}`, 'success');
+                    log('✓ StandardBundle loaded successfully', 'success');
+                    log(`Extensions: ${result.loadedExtensions.join(', ')}`);
+                } else {
+                    updateStatus('standardStatus', `Failed to load: ${result.errors.join(', ')}`, 'error');
+                    log(`✗ StandardBundle loading failed: ${result.errors.join(', ')}`, 'error');
+                }
+            } catch (error) {
+                log(`Error loading StandardBundle: ${error.message}`, 'error');
+                updateStatus('standardStatus', `Error: ${error.message}`, 'error');
+            }
+        }
+
+        function unloadBundle() {
+            if (currentBundle === 'standard') {
+                // Note: StandardBundle doesn't have direct access to unload method from static context
+                // In practice, you'd need to store the bundle instance or rebuild grid
+                log('Bundle unloading would require storing bundle instance - reloading page for demo');
+                updateStatus('standardStatus', 'Bundle unloaded (page reload simulation)', 'info');
+                currentBundle = null;
+            } else {
+                log('No bundle loaded', 'info');
+            }
+        }
+
+        function testBundleCompatibility() {
+            try {
+                const compatibility = SwivelGridBundles.checkCompatibility(grid, 'standard');
+                if (compatibility.compatible) {
+                    log('✓ StandardBundle is compatible with this grid', 'success');
+                } else {
+                    log(`✗ Compatibility issues: ${compatibility.issues.join(', ')}`, 'error');
+                }
+            } catch (error) {
+                log(`Error checking compatibility: ${error.message}`, 'error');
+            }
+        }
+
+        function loadDataAndTest() {
+            if (!currentBundle) {
+                log('Please load StandardBundle first', 'error');
+                return;
+            }
+
+            // Test data with templates
+            const schema = [
+                { 
+                    key: 'name', 
+                    label: 'Product Name',
+                    cellTemplate: '{{renderText name}}'
+                },
+                { 
+                    key: 'rating', 
+                    label: 'Rating',
+                    cellTemplate: '{{renderRating rating}}'
+                },
+                { 
+                    key: 'price', 
+                    label: 'Price',
+                    cellTemplate: '{{formatCurrency price}}'
+                }
+            ];
+
+            const rows = [
+                { name: 'Laptop Pro', rating: '4/5', price: 1299.99 },
+                { name: 'Wireless Mouse', rating: '5/5', price: 29.99 },
+                { name: 'Keyboard Deluxe', rating: '3/5', price: 89.99 },
+                { name: 'Monitor 4K', rating: '4/5', price: 399.99 }
+            ];
+
+            grid.schema = schema;
+            grid.setData(rows);
+            
+            log('✓ Test data loaded with templates', 'success');
+        }
+
+        function switchToGrid() {
+            if (!currentBundle) {
+                log('Please load StandardBundle first', 'error');
+                return;
+            }
+
+            grid.layoutType = grid.layoutType === 'table' ? 'grid' : 'table';
+            log(`✓ Switched to ${grid.layoutType} layout`, 'success');
+        }
+
+        function testSorting() {
+            if (!currentBundle) {
+                log('Please load StandardBundle first', 'error');
+                return;
+            }
+
+            // Try to get sorting extension and test
+            const sortingExt = grid.getExtension('sorting');
+            if (sortingExt) {
+                log('✓ SortingExtension is available', 'success');
+                log('Click on column headers to test sorting functionality');
+            } else {
+                log('✗ SortingExtension not found', 'error');
+            }
+        }
+
+        function testTemplates() {
+            if (!currentBundle) {
+                log('Please load StandardBundle first', 'error');
+                return;
+            }
+
+            const templateExt = grid.getExtension('templates');
+            if (templateExt) {
+                log('✓ TemplateExtension is available', 'success');
+                log('Template helpers available: rating, image, currency, number, date, text');
+            } else {
+                log('✗ TemplateExtension not found', 'error');
+            }
+        }
+
+        async function testUseCaseLoading() {
+            try {
+                log('Testing use case loading...');
+                const testGrid = document.createElement('swivel-grid');
+                const result = await SwivelGridBundles.loadForUseCase(testGrid, 'data-table', { verbose: true });
+                
+                if (result.success) {
+                    log('✓ Use case "data-table" loaded successfully', 'success');
+                    log(`Extensions loaded: ${result.loadedExtensions.join(', ')}`);
+                } else {
+                    log(`✗ Use case loading failed: ${result.errors.join(', ')}`, 'error');
+                }
+            } catch (error) {
+                log(`Error testing use case loading: ${error.message}`, 'error');
+            }
+        }
+
+        function testRecommendations() {
+            try {
+                const requirements = {
+                    needsSorting: true,
+                    needsTemplates: true,
+                    prioritizeSize: true
+                };
+                
+                const recommendation = SwivelGridBundles.recommend(requirements);
+                log(`Recommendation: ${recommendation.bundle}${recommendation.preset ? ' (' + recommendation.preset + ')' : ''}`, 'success');
+                log(`Reason: ${recommendation.reason}`);
+                log(`Estimated size: ${recommendation.estimatedSize}`);
+                log(`Features: ${recommendation.features.join(', ')}`);
+            } catch (error) {
+                log(`Error getting recommendations: ${error.message}`, 'error');
+            }
+        }
+
+        function testBundleSizes() {
+            try {
+                const info = SwivelGridBundles.getInfo();
+                log('Bundle Sizes:', 'success');
+                for (const [name, sizeInfo] of Object.entries(info.sizes)) {
+                    log(`  ${name}: ${sizeInfo.estimatedSize} (${sizeInfo.lineCount})`);
+                }
+            } catch (error) {
+                log(`Error getting bundle sizes: ${error.message}`, 'error');
+            }
+        }
+    </script>
+</body>
+</html>

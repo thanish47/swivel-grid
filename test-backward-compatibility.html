@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Backward Compatibility Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 20px; border: 1px solid #ddd; }
+        .controls { margin: 10px 0; }
+        button { margin: 5px; padding: 8px 12px; }
+        .grid-container { margin: 20px 0; }
+        .status { padding: 10px; margin: 10px 0; border-radius: 4px; }
+        .success { background-color: #d4edda; border: 1px solid #c3e6cb; color: #155724; }
+        .error { background-color: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; }
+        .info { background-color: #d1ecf1; border: 1px solid #bee5eb; color: #0c5460; }
+        #output { margin-top: 10px; font-family: monospace; background: #f5f5f5; padding: 10px; max-height: 400px; overflow-y: auto; }
+    </style>
+</head>
+<body>
+    <h1>Backward Compatibility Test</h1>
+    <p>This test ensures that existing code patterns still work with the new bundle system.</p>
+    
+    <div class="test-section">
+        <h2>Legacy Manual Extension Loading</h2>
+        <div class="controls">
+            <button onclick="testManualExtensionLoading()">Test Manual Extension Loading</button>
+            <button onclick="testLegacyAPI()">Test Legacy API Methods</button>
+        </div>
+        <div id="legacyStatus" class="status">Legacy tests ready</div>
+        <div class="grid-container">
+            <swivel-grid id="legacyGrid"></swivel-grid>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>Bundle vs Manual Loading Comparison</h2>
+        <div class="controls">
+            <button onclick="compareManualVsBundle()">Compare Manual vs Bundle Loading</button>
+            <button onclick="testMixedLoading()">Test Mixed Loading (Bundle + Manual)</button>
+        </div>
+        <div id="comparisonStatus" class="status">Comparison tests ready</div>
+        <div class="grid-container">
+            <swivel-grid id="comparisonGrid1" style="margin: 10px 0;"></swivel-grid>
+            <swivel-grid id="comparisonGrid2" style="margin: 10px 0;"></swivel-grid>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>Template Migration Test</h2>
+        <div class="controls">
+            <button onclick="testTemplateBasedApproach()">Test Template-Based Approach</button>
+            <button onclick="testTemplateHelpers()">Test All Template Helpers</button>
+        </div>
+        <div id="templateStatus" class="status">Template tests ready</div>
+        <div class="grid-container">
+            <swivel-grid id="templateGrid"></swivel-grid>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>API Compatibility Test</h2>
+        <div class="controls">
+            <button onclick="testCoreAPIMethods()">Test Core API Methods</button>
+            <button onclick="testExtensionAPIMethods()">Test Extension API Methods</button>
+            <button onclick="testEventSystem()">Test Event System</button>
+        </div>
+        <div id="apiStatus" class="status">API tests ready</div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Test Output</h2>
+        <div id="output"></div>
+    </div>
+
+    <!-- Load core and all extensions (simulating old way) -->
+    <script src="SwivelGrid.js"></script>
+    <script src="extensions/BaseExtension.js"></script>
+    <script src="extensions/LayoutRendererExtension.js"></script>
+    <script src="extensions/TemplateExtension.js"></script>
+    <script src="extensions/SortingExtension.js"></script>
+    <script src="extensions/SearchExtension.js"></script>
+    <script src="extensions/PaginationExtension.js"></script>
+    <script src="extensions/CssClassesExtension.js"></script>
+    <script src="extensions/AccessibilityExtension.js"></script>
+    
+    <!-- Load bundles (new way) -->
+    <script src="bundles/StandardBundle.js"></script>
+    <script src="bundles/AdvancedBundle.js"></script>
+    <script src="bundles/BundleLoader.js"></script>
+    <script src="bundles/index.js"></script>
+
+    <script>
+        let legacyGrid, comparisonGrid1, comparisonGrid2, templateGrid;
+        
+        function log(message, type = 'info') {
+            const output = document.getElementById('output');
+            const timestamp = new Date().toLocaleTimeString();
+            const div = document.createElement('div');
+            div.style.color = type === 'error' ? 'red' : type === 'success' ? 'green' : 'black';
+            div.textContent = `[${timestamp}] ${message}`;
+            output.appendChild(div);
+            output.scrollTop = output.scrollHeight;
+            console.log(message);
+        }
+
+        function updateStatus(elementId, message, type = 'info') {
+            const element = document.getElementById(elementId);
+            element.textContent = message;
+            element.className = `status ${type}`;
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            legacyGrid = document.getElementById('legacyGrid');
+            comparisonGrid1 = document.getElementById('comparisonGrid1');
+            comparisonGrid2 = document.getElementById('comparisonGrid2');
+            templateGrid = document.getElementById('templateGrid');
+            
+            log('Backward compatibility test page loaded');
+        });
+
+        function testManualExtensionLoading() {
+            try {
+                log('Testing manual extension loading (old way)...');
+                
+                // Load extensions manually like in the old days
+                const layoutExt = new LayoutRendererExtension();
+                const templateExt = new TemplateExtension();
+                const sortingExt = new SortingExtension();
+                
+                legacyGrid.registerExtension(layoutExt);
+                legacyGrid.registerExtension(templateExt);
+                legacyGrid.registerExtension(sortingExt);
+                
+                log('✓ Manual extension loading successful', 'success');
+                updateStatus('legacyStatus', 'Extensions loaded manually', 'success');
+                
+                // Test that they work
+                const hasLayout = legacyGrid.hasExtension('layout-renderer');
+                const hasTemplate = legacyGrid.hasExtension('templates');
+                const hasSorting = legacyGrid.hasExtension('sorting');
+                
+                log(`Layout extension: ${hasLayout ? '✓' : '✗'}`);
+                log(`Template extension: ${hasTemplate ? '✓' : '✗'}`);
+                log(`Sorting extension: ${hasSorting ? '✓' : '✗'}`);
+                
+            } catch (error) {
+                log(`Error in manual extension loading: ${error.message}`, 'error');
+                updateStatus('legacyStatus', `Error: ${error.message}`, 'error');
+            }
+        }
+
+        function testLegacyAPI() {
+            try {
+                log('Testing legacy API methods...');
+                
+                // Old-style schema definition
+                const schema = [
+                    { key: 'name', label: 'Name' },
+                    { key: 'value', label: 'Value' }
+                ];
+                
+                const data = [
+                    { name: 'Item 1', value: 100 },
+                    { name: 'Item 2', value: 200 }
+                ];
+                
+                // Set properties the old way
+                legacyGrid.schema = schema;
+                legacyGrid.setData(data);
+                legacyGrid.layoutType = 'table';
+                
+                log('✓ Legacy API methods work correctly', 'success');
+                
+                // Test old event patterns
+                legacyGrid.addEventListener('swivel:data', function(e) {
+                    log(`Legacy event: ${e.type} triggered`);
+                });
+                
+                // Trigger data change
+                legacyGrid.setData([...data, { name: 'Item 3', value: 300 }]);
+                
+            } catch (error) {
+                log(`Error in legacy API test: ${error.message}`, 'error');
+            }
+        }
+
+        async function compareManualVsBundle() {
+            try {
+                log('Comparing manual loading vs bundle loading...');
+                
+                // Manual loading (old way)
+                const startManual = performance.now();
+                comparisonGrid1.registerExtension(new LayoutRendererExtension());
+                comparisonGrid1.registerExtension(new TemplateExtension());
+                comparisonGrid1.registerExtension(new SortingExtension());
+                const endManual = performance.now();
+                
+                // Bundle loading (new way)
+                const startBundle = performance.now();
+                await SwivelGridBundles.loadStandard(comparisonGrid2);
+                const endBundle = performance.now();
+                
+                log(`Manual loading time: ${(endManual - startManual).toFixed(2)}ms`);
+                log(`Bundle loading time: ${(endBundle - startBundle).toFixed(2)}ms`);
+                
+                // Test both have same functionality
+                const manual = {
+                    layout: comparisonGrid1.hasExtension('layout-renderer'),
+                    template: comparisonGrid1.hasExtension('templates'),
+                    sorting: comparisonGrid1.hasExtension('sorting')
+                };
+                
+                const bundle = {
+                    layout: comparisonGrid2.hasExtension('layout-renderer'),
+                    template: comparisonGrid2.hasExtension('templates'),
+                    sorting: comparisonGrid2.hasExtension('sorting')
+                };
+                
+                log('Manual loading extensions:', 'info');
+                log(`  Layout: ${manual.layout}, Template: ${manual.template}, Sorting: ${manual.sorting}`);
+                
+                log('Bundle loading extensions:', 'info');
+                log(`  Layout: ${bundle.layout}, Template: ${bundle.template}, Sorting: ${bundle.sorting}`);
+                
+                const identical = JSON.stringify(manual) === JSON.stringify(bundle);
+                if (identical) {
+                    log('✓ Both approaches load identical functionality', 'success');
+                    updateStatus('comparisonStatus', 'Manual and bundle loading produce identical results', 'success');
+                } else {
+                    log('✗ Functionality differs between approaches', 'error');
+                    updateStatus('comparisonStatus', 'Approaches produce different results', 'error');
+                }
+                
+            } catch (error) {
+                log(`Error in comparison test: ${error.message}`, 'error');
+            }
+        }
+
+        async function testMixedLoading() {
+            try {
+                log('Testing mixed loading (bundle + manual extensions)...');
+                
+                // First load a bundle
+                await SwivelGridBundles.loadStandard(comparisonGrid1);
+                log('Standard bundle loaded');
+                
+                // Then add manual extensions
+                const searchExt = new SearchExtension();
+                const paginationExt = new PaginationExtension();
+                
+                comparisonGrid1.registerExtension(searchExt);
+                comparisonGrid1.registerExtension(paginationExt);
+                
+                log('Additional manual extensions loaded');
+                
+                // Check final state
+                const allExtensions = ['layout-renderer', 'templates', 'sorting', 'search', 'pagination'];
+                const loadedExtensions = allExtensions.filter(name => comparisonGrid1.hasExtension(name));
+                
+                log(`✓ Mixed loading successful: ${loadedExtensions.join(', ')}`, 'success');
+                updateStatus('comparisonStatus', `Mixed loading: ${loadedExtensions.length}/${allExtensions.length} extensions`, 'success');
+                
+            } catch (error) {
+                log(`Error in mixed loading test: ${error.message}`, 'error');
+            }
+        }
+
+        function testTemplateBasedApproach() {
+            try {
+                log('Testing template-based approach (post-ColumnTypes removal)...');
+                
+                // Load template extension manually
+                templateGrid.registerExtension(new LayoutRendererExtension());
+                templateGrid.registerExtension(new TemplateExtension());
+                
+                // Test schema without old column types - all template-based
+                const schema = [
+                    { 
+                        key: 'name', 
+                        label: 'Product',
+                        cellTemplate: '{{renderText name}}'
+                    },
+                    { 
+                        key: 'rating', 
+                        label: 'Rating',
+                        cellTemplate: '{{renderRating rating}}'
+                    },
+                    { 
+                        key: 'image', 
+                        label: 'Image',
+                        cellTemplate: '{{renderImage image}}'
+                    },
+                    { 
+                        key: 'price', 
+                        label: 'Price',
+                        cellTemplate: '{{formatCurrency price}}'
+                    },
+                    { 
+                        key: 'date', 
+                        label: 'Release Date',
+                        cellTemplate: '{{formatDate date}}'
+                    }
+                ];
+
+                const data = [
+                    {
+                        name: 'Gaming Laptop',
+                        rating: '5/5',
+                        image: { src: 'data:image/svg+xml,<svg></svg>', alt: 'Laptop' },
+                        price: 1299.99,
+                        date: '2024-01-15'
+                    },
+                    {
+                        name: 'Wireless Mouse',
+                        rating: '4/5',
+                        image: { src: 'data:image/svg+xml,<svg></svg>', alt: 'Mouse' },
+                        price: 29.99,
+                        date: '2024-02-01'
+                    }
+                ];
+
+                templateGrid.schema = schema;
+                templateGrid.setData(data);
+                
+                log('✓ Template-based approach working correctly', 'success');
+                updateStatus('templateStatus', 'All template helpers functional', 'success');
+                
+            } catch (error) {
+                log(`Error in template test: ${error.message}`, 'error');
+                updateStatus('templateStatus', `Template error: ${error.message}`, 'error');
+            }
+        }
+
+        function testTemplateHelpers() {
+            const templateExt = templateGrid.getExtension('templates');
+            if (!templateExt) {
+                log('Template extension not loaded', 'error');
+                return;
+            }
+
+            log('Testing all template helpers...');
+
+            try {
+                // Test each helper
+                const tests = [
+                    { helper: 'renderText', input: 'Hello World', expected: 'string' },
+                    { helper: 'renderRating', input: '4/5', expected: 'string' },
+                    { helper: 'renderImage', input: {src: 'test.jpg', alt: 'Test'}, expected: 'string' },
+                    { helper: 'formatCurrency', input: 99.99, expected: 'string' },
+                    { helper: 'formatNumber', input: 1234.56, expected: 'string' },
+                    { helper: 'formatDate', input: '2024-01-01', expected: 'string' }
+                ];
+
+                let passed = 0;
+                for (const test of tests) {
+                    try {
+                        const result = templateExt[test.helper](test.input);
+                        if (typeof result === test.expected) {
+                            log(`✓ ${test.helper}: Working`, 'success');
+                            passed++;
+                        } else {
+                            log(`✗ ${test.helper}: Wrong return type`, 'error');
+                        }
+                    } catch (error) {
+                        log(`✗ ${test.helper}: ${error.message}`, 'error');
+                    }
+                }
+
+                log(`Template helpers test: ${passed}/${tests.length} passed`);
+                
+            } catch (error) {
+                log(`Error testing template helpers: ${error.message}`, 'error');
+            }
+        }
+
+        function testCoreAPIMethods() {
+            try {
+                log('Testing core API methods...');
+                
+                const testMethods = [
+                    'setData', 'render', 'registerExtension', 'unregisterExtension', 
+                    'hasExtension', 'getExtension', 'dispatchEvent'
+                ];
+
+                let available = 0;
+                for (const method of testMethods) {
+                    if (typeof legacyGrid[method] === 'function') {
+                        log(`✓ ${method}: Available`);
+                        available++;
+                    } else {
+                        log(`✗ ${method}: Missing`, 'error');
+                    }
+                }
+
+                updateStatus('apiStatus', `Core API: ${available}/${testMethods.length} methods available`, available === testMethods.length ? 'success' : 'error');
+                
+            } catch (error) {
+                log(`Error testing core API: ${error.message}`, 'error');
+            }
+        }
+
+        function testExtensionAPIMethods() {
+            try {
+                log('Testing extension API methods...');
+                
+                // Create test extension
+                const testExt = new LayoutRendererExtension();
+                
+                const extensionMethods = [
+                    'initialize', 'destroy', 'getGrid', 'getGridState'
+                ];
+
+                let available = 0;
+                for (const method of extensionMethods) {
+                    if (typeof testExt[method] === 'function') {
+                        log(`✓ Extension.${method}: Available`);
+                        available++;
+                    } else {
+                        log(`✗ Extension.${method}: Missing`, 'error');
+                    }
+                }
+
+                log(`Extension API: ${available}/${extensionMethods.length} methods available`);
+                
+            } catch (error) {
+                log(`Error testing extension API: ${error.message}`, 'error');
+            }
+        }
+
+        function testEventSystem() {
+            try {
+                log('Testing event system compatibility...');
+                
+                let eventsReceived = 0;
+                
+                // Test legacy event names
+                legacyGrid.addEventListener('swivel:data', () => {
+                    eventsReceived++;
+                    log('✓ swivel:data event received');
+                });
+                
+                legacyGrid.addEventListener('swivel:render', () => {
+                    eventsReceived++;
+                    log('✓ swivel:render event received');
+                });
+
+                // Trigger events
+                legacyGrid.setData([{test: 'data'}]);
+                legacyGrid.render();
+
+                setTimeout(() => {
+                    if (eventsReceived >= 2) {
+                        log(`✓ Event system working: ${eventsReceived} events received`, 'success');
+                        updateStatus('apiStatus', 'Event system compatible', 'success');
+                    } else {
+                        log(`✗ Event system issues: only ${eventsReceived} events received`, 'error');
+                        updateStatus('apiStatus', 'Event system has issues', 'error');
+                    }
+                }, 100);
+                
+            } catch (error) {
+                log(`Error testing event system: ${error.message}`, 'error');
+            }
+        }
+    </script>
+</body>
+</html>

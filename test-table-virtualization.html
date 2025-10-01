@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Table Virtualization Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 20px; border: 1px solid #ddd; }
+        .controls { margin: 10px 0; }
+        button { margin: 5px; padding: 8px 12px; }
+        .grid-container { margin: 20px 0; height: 500px; border: 1px solid #ccc; }
+        .status { padding: 10px; margin: 10px 0; border-radius: 4px; }
+        .success { background-color: #d4edda; border: 1px solid #c3e6cb; color: #155724; }
+        .error { background-color: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; }
+        .info { background-color: #d1ecf1; border: 1px solid #bee5eb; color: #0c5460; }
+        #output { margin-top: 10px; font-family: monospace; background: #f5f5f5; padding: 10px; max-height: 300px; overflow-y: auto; }
+        .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin: 10px 0; }
+        .metric { padding: 10px; background: #f8f9fa; border-radius: 4px; }
+        .metric h4 { margin: 0 0 5px 0; }
+    </style>
+</head>
+<body>
+    <h1>Table Virtualization Test</h1>
+    
+    <div class="test-section">
+        <h2>Performance Metrics</h2>
+        <div id="metricsDisplay" class="metrics"></div>
+        <div class="controls">
+            <button onclick="updateMetrics()">Refresh Metrics</button>
+            <button onclick="benchmarkPerformance()">Run Performance Benchmark</button>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>Dataset Controls</h2>
+        <div class="controls">
+            <button onclick="loadSmallDataset()">Load Small Dataset (20 rows)</button>
+            <button onclick="loadMediumDataset()">Load Medium Dataset (100 rows)</button>
+            <button onclick="loadLargeDataset()">Load Large Dataset (1,000 rows)</button>
+            <button onclick="loadHugeDataset()">Load Huge Dataset (10,000 rows)</button>
+            <button onclick="loadExtremeDataset()">Load Extreme Dataset (100,000 rows)</button>
+        </div>
+        <div id="datasetStatus" class="status">No dataset loaded</div>
+    </div>
+
+    <div class="test-section">
+        <h2>Virtualization Controls</h2>
+        <div class="controls">
+            <button onclick="loadVirtualizer()">Load TableVirtualizer</button>
+            <button onclick="unloadVirtualizer()">Unload Virtualizer</button>
+            <button onclick="toggleVirtualization()">Toggle Virtualization</button>
+            <button onclick="scrollToRow(500)">Scroll to Row 500</button>
+            <button onclick="scrollToRow(5000)">Scroll to Row 5000</button>
+            <button onclick="scrollToRow(50000)">Scroll to Row 50000</button>
+            <button onclick="testScrollPerformance()">Test Scroll Performance</button>
+            <button onclick="testStickyHeader()">Test Sticky Header</button>
+        </div>
+        <div id="virtualizationStatus" class="status">TableVirtualizer not loaded</div>
+        <div class="info" style="margin-top: 10px;">
+            <strong>✨ Default Feature:</strong> Sticky headers are now the default for all table layouts! 
+            Headers stay fixed at the top while only data rows scroll, providing better usability for all datasets.
+            Both regular tables and virtualized tables now use this improved structure automatically.
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>Virtualized Table</h2>
+        <div class="grid-container">
+            <swivel-grid id="virtualizedTable" layout-type="table"></swivel-grid>
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Test Output</h2>
+        <div id="output"></div>
+    </div>
+
+    <!-- Load core and extensions -->
+    <script src="SwivelGrid.js"></script>
+    <script src="extensions/BaseExtension.js"></script>
+    <script src="extensions/LayoutRendererExtension.js"></script>
+    <script src="extensions/TemplateExtension.js"></script>
+    <script src="extensions/SortingExtension.js"></script>
+    <script src="extensions/TableVirtualizer.js"></script>
+    
+    <!-- Load bundles for easy setup -->
+    <script src="bundles/StandardBundle.js"></script>
+    <script src="bundles/AdvancedBundle.js"></script>
+    <script src="bundles/BundleLoader.js"></script>
+    <script src="bundles/index.js"></script>
+
+    <script>
+        let grid;
+        let tableVirtualizer = null;
+        let currentDatasetSize = 0;
+        let performanceData = [];
+
+        function log(message, type = 'info') {
+            const output = document.getElementById('output');
+            const timestamp = new Date().toLocaleTimeString();
+            const div = document.createElement('div');
+            div.style.color = type === 'error' ? 'red' : type === 'success' ? 'green' : 'black';
+            div.textContent = `[${timestamp}] ${message}`;
+            output.appendChild(div);
+            output.scrollTop = output.scrollHeight;
+            console.log(message);
+        }
+
+        function updateStatus(elementId, message, type = 'info') {
+            const element = document.getElementById(elementId);
+            element.textContent = message;
+            element.className = `status ${type}`;
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', async function() {
+            try {
+                console.log('DOM loaded, initializing...');
+                grid = document.getElementById('virtualizedTable');
+                
+                if (!grid) {
+                    log('ERROR: Grid element not found!', 'error');
+                    return;
+                }
+                
+                // Check if required classes are available
+                if (typeof SwivelGridBundles === 'undefined') {
+                    log('ERROR: SwivelGridBundles not loaded!', 'error');
+                    return;
+                }
+                
+                // Load basic extensions
+                log('Loading standard bundle...');
+                const result = await SwivelGridBundles.loadStandard(grid);
+                if (result.success) {
+                    log('Standard bundle loaded successfully', 'success');
+                } else {
+                    log('Failed to load standard bundle: ' + result.errors.join(', '), 'error');
+                    return;
+                }
+                
+                // Set up event listeners
+                grid.addEventListener('swivel:virtualization-update', handleVirtualizationUpdate);
+                
+                log('Table virtualization test page loaded successfully', 'success');
+                
+                // Test that functions are accessible
+                console.log('loadSmallDataset function:', typeof loadSmallDataset);
+                console.log('window.loadSmallDataset function:', typeof window.loadSmallDataset);
+                
+            } catch (error) {
+                log('Error during initialization: ' + error.message, 'error');
+                console.error('Initialization error:', error);
+            }
+        });
+
+        function handleVirtualizationUpdate(event) {
+            const { oldRange, newRange, visibleRowCount, totalRows } = event.detail;
+            log(`Virtualization update: showing ${visibleRowCount} of ${totalRows} rows (${newRange.start}-${newRange.end})`);
+        }
+
+        async function loadVirtualizer() {
+            try {
+                if (!tableVirtualizer) {
+                    tableVirtualizer = new TableVirtualizer();
+                    grid.registerExtension(tableVirtualizer);
+                    log('✓ TableVirtualizer loaded', 'success');
+                    updateStatus('virtualizationStatus', 'TableVirtualizer loaded and active', 'success');
+                } else {
+                    log('TableVirtualizer already loaded', 'info');
+                }
+            } catch (error) {
+                log(`Error loading TableVirtualizer: ${error.message}`, 'error');
+                updateStatus('virtualizationStatus', `Error: ${error.message}`, 'error');
+            }
+        }
+
+        function unloadVirtualizer() {
+            if (tableVirtualizer) {
+                grid.unregisterExtension('table-virtualizer');
+                tableVirtualizer = null;
+                log('✓ TableVirtualizer unloaded', 'success');
+                updateStatus('virtualizationStatus', 'TableVirtualizer unloaded', 'info');
+            } else {
+                log('TableVirtualizer not loaded', 'info');
+            }
+        }
+
+        function toggleVirtualization() {
+            if (tableVirtualizer) {
+                // Toggle by changing dataset size threshold
+                const isEnabled = tableVirtualizer.isVirtualizationEnabled(currentDatasetSize);
+                log(`Virtualization currently ${isEnabled ? 'enabled' : 'disabled'} for ${currentDatasetSize} rows`);
+                
+                if (currentDatasetSize > 0) {
+                    grid.render(); // Re-render to apply changes
+                    log('Table re-rendered');
+                }
+            } else {
+                log('Please load TableVirtualizer first', 'error');
+            }
+        }
+
+        function generateTestData(count) {
+            const categories = ['Electronics', 'Books', 'Clothing', 'Home', 'Sports', 'Automotive', 'Health', 'Beauty'];
+            const statuses = ['Active', 'Inactive', 'Pending', 'Sold', 'Reserved'];
+            const companies = ['TechCorp', 'DataSoft', 'InnovateLab', 'FutureTech', 'SmartSys'];
+            
+            const startTime = performance.now();
+            
+            // For very large datasets, optimize generation
+            const isLarge = count > 50000;
+            
+            // Pre-calculate reusable data for better performance
+            const precomputedData = {};
+            if (isLarge) {
+                precomputedData.dates = [];
+                precomputedData.prices = [];
+                precomputedData.ratings = [];
+                precomputedData.stocks = [];
+                
+                // Pre-generate random values in batches
+                const batchSize = 10000;
+                for (let i = 0; i < batchSize; i++) {
+                    precomputedData.dates.push(new Date(2020 + Math.floor(Math.random() * 4), 
+                                                      Math.floor(Math.random() * 12), 
+                                                      Math.floor(Math.random() * 28) + 1).toISOString().split('T')[0]);
+                    precomputedData.prices.push(Math.floor(Math.random() * 1000) + 10);
+                    precomputedData.ratings.push(`${Math.floor(Math.random() * 5) + 1}/5`);
+                    precomputedData.stocks.push(Math.floor(Math.random() * 500));
+                }
+            }
+            
+            const data = [];
+            
+            for (let i = 0; i < count; i++) {
+                if (isLarge && i % 10000 === 0 && i > 0) {
+                    // Progress indicator for large datasets
+                    const progress = Math.floor((i / count) * 100);
+                    console.log(`Generating data: ${progress}% complete (${i.toLocaleString()} / ${count.toLocaleString()})`);
+                }
+                
+                let item;
+                if (isLarge) {
+                    // Use pre-computed values for better performance
+                    const batchIndex = i % 10000;
+                    item = {
+                        id: i + 1,
+                        name: `Product ${i + 1}`,
+                        category: categories[i % categories.length],
+                        price: precomputedData.prices[batchIndex],
+                        rating: precomputedData.ratings[batchIndex],
+                        status: statuses[i % statuses.length],
+                        company: companies[i % companies.length],
+                        date: precomputedData.dates[batchIndex],
+                        stock: precomputedData.stocks[batchIndex],
+                        description: `Product ${i + 1} description`
+                    };
+                } else {
+                    // Standard generation for smaller datasets
+                    item = {
+                        id: i + 1,
+                        name: `Product ${i + 1}`,
+                        category: categories[i % categories.length],
+                        price: Math.floor(Math.random() * 1000) + 10,
+                        rating: `${Math.floor(Math.random() * 5) + 1}/5`,
+                        status: statuses[i % statuses.length],
+                        company: companies[i % companies.length],
+                        date: new Date(2020 + Math.floor(Math.random() * 4), 
+                                     Math.floor(Math.random() * 12), 
+                                     Math.floor(Math.random() * 28) + 1).toISOString().split('T')[0],
+                        stock: Math.floor(Math.random() * 500),
+                        description: `This is a detailed description for product ${i + 1} with various features and specifications.`
+                    };
+                }
+                
+                data.push(item);
+            }
+            
+            const endTime = performance.now();
+            const generationTime = endTime - startTime;
+            log(`Generated ${count.toLocaleString()} rows in ${generationTime.toFixed(2)}ms (${(count / generationTime * 1000).toFixed(0)} rows/sec)`);
+            
+            return data;
+        }
+
+        function setupTableSchema() {
+            return [
+                { key: 'id', label: 'ID', cellTemplate: '{{renderText id}}' },
+                { key: 'name', label: 'Product Name', cellTemplate: '{{renderText name}}' },
+                { key: 'category', label: 'Category', cellTemplate: '{{renderText category}}' },
+                { key: 'price', label: 'Price', cellTemplate: '{{formatCurrency price}}' },
+                { key: 'rating', label: 'Rating', cellTemplate: '{{renderRating rating}}' },
+                { key: 'status', label: 'Status', cellTemplate: '{{renderText status}}' },
+                { key: 'company', label: 'Company', cellTemplate: '{{renderText company}}' },
+                { key: 'date', label: 'Date', cellTemplate: '{{formatDate date}}' },
+                { key: 'stock', label: 'Stock', cellTemplate: '{{formatNumber stock}}' },
+                { key: 'description', label: 'Description', cellTemplate: '{{renderText description}}' }
+            ];
+        }
+
+        async function loadDataset(size, label) {
+            const startTime = performance.now();
+            
+            log(`Loading ${label} (${size.toLocaleString()} rows)...`);
+            
+            // Auto-load TableVirtualizer for datasets over 500 rows
+            if (size > 500 && !tableVirtualizer) {
+                const virtualizerStartTime = performance.now();
+                
+                if (size > 50000) {
+                    updateStatus('datasetStatus', `Extreme dataset detected (${size.toLocaleString()} rows). Loading TableVirtualizer...`, 'info');
+                } else {
+                    log('Large dataset detected, loading TableVirtualizer automatically...');
+                }
+                
+                await loadVirtualizer();
+                
+                const virtualizerLoadTime = performance.now() - virtualizerStartTime;
+                log(`TableVirtualizer loaded in ${virtualizerLoadTime.toFixed(2)}ms`);
+            }
+            
+            const schema = setupTableSchema();
+            const data = generateTestData(size);
+            
+            grid.schema = schema;
+            
+            // For very large datasets, show loading progress
+            if (size > 50000) {
+                updateStatus('datasetStatus', `Loading ${label}... Please wait`, 'info');
+                // Use setTimeout to allow UI update before heavy operation
+                setTimeout(() => {
+                    grid.setData(data);
+                    finishDatasetLoad(size, label, startTime);
+                }, 100);
+            } else {
+                grid.setData(data);
+                finishDatasetLoad(size, label, startTime);
+            }
+        }
+
+        function finishDatasetLoad(size, label, startTime) {
+            currentDatasetSize = size;
+            
+            const endTime = performance.now();
+            const loadTime = endTime - startTime;
+            
+            log(`✓ ${label} loaded in ${loadTime.toFixed(2)}ms`, 'success');
+            updateStatus('datasetStatus', `${label}: ${size.toLocaleString()} rows loaded`, 'success');
+            
+            // Store performance data
+            performanceData.push({
+                timestamp: new Date(),
+                datasetSize: size,
+                loadTime: loadTime,
+                virtualized: tableVirtualizer && tableVirtualizer.isVirtualizationEnabled(size)
+            });
+            
+            updateMetrics();
+            
+            // Show virtualization status for large datasets
+            if (size > 1000) {
+                const isVirtualized = tableVirtualizer && tableVirtualizer.isVirtualizationEnabled(size);
+                log(`Virtualization: ${isVirtualized ? '✅ Enabled' : '❌ Disabled'}`, isVirtualized ? 'success' : 'error');
+            }
+        }
+
+        function loadSmallDataset() { loadDataset(20, 'Small Dataset'); }
+        function loadMediumDataset() { loadDataset(100, 'Medium Dataset'); }
+        function loadLargeDataset() { loadDataset(1000, 'Large Dataset'); }
+        function loadHugeDataset() { loadDataset(10000, 'Huge Dataset'); }
+        function loadExtremeDataset() { loadDataset(100000, 'Extreme Dataset'); }
+        
+        // Make functions globally accessible
+        window.loadSmallDataset = loadSmallDataset;
+        window.loadMediumDataset = loadMediumDataset;
+        window.loadLargeDataset = loadLargeDataset;
+        window.loadHugeDataset = loadHugeDataset;
+        window.loadExtremeDataset = loadExtremeDataset;
+        window.scrollToRow = scrollToRow;
+        window.loadVirtualizer = loadVirtualizer;
+        window.unloadVirtualizer = unloadVirtualizer;
+        window.toggleVirtualization = toggleVirtualization;
+        window.updateMetrics = updateMetrics;
+        window.benchmarkPerformance = benchmarkPerformance;
+        window.testScrollPerformance = testScrollPerformance;
+
+        function scrollToRow(rowIndex) {
+            if (tableVirtualizer && currentDatasetSize > 0) {
+                log(`Scrolling to row ${rowIndex}...`);
+                tableVirtualizer.scrollToRow(rowIndex, 'center');
+                log(`✓ Scrolled to row ${rowIndex}`, 'success');
+            } else {
+                log('TableVirtualizer not loaded or no data', 'error');
+            }
+        }
+
+        function updateMetrics() {
+            if (tableVirtualizer) {
+                const metrics = tableVirtualizer.getPerformanceMetrics();
+                displayMetrics(metrics);
+            } else {
+                log('TableVirtualizer not loaded', 'info');
+            }
+        }
+
+        function displayMetrics(metrics) {
+            const metricsEl = document.getElementById('metricsDisplay');
+            metricsEl.innerHTML = `
+                <div class="metric">
+                    <h4>Virtualization Status</h4>
+                    <p>${metrics.enabled ? '✅ Enabled' : '❌ Disabled'}</p>
+                </div>
+                <div class="metric">
+                    <h4>Total Rows</h4>
+                    <p>${metrics.totalRows.toLocaleString()}</p>
+                </div>
+                <div class="metric">
+                    <h4>Visible Rows</h4>
+                    <p>${metrics.visibleRows} / ${metrics.totalRows}</p>
+                </div>
+                <div class="metric">
+                    <h4>Memory Efficiency</h4>
+                    <p>${metrics.memoryUsage.efficiency}</p>
+                </div>
+                <div class="metric">
+                    <h4>Row Height</h4>
+                    <p>${metrics.rowHeight}px</p>
+                </div>
+                <div class="metric">
+                    <h4>Overscan</h4>
+                    <p>${metrics.overscan} rows</p>
+                </div>
+                <div class="metric">
+                    <h4>Render Count</h4>
+                    <p>${metrics.renderCount}</p>
+                </div>
+                <div class="metric">
+                    <h4>Last Render Time</h4>
+                    <p>${metrics.lastRenderTime.toFixed(2)}ms</p>
+                </div>
+            `;
+        }
+
+        async function benchmarkPerformance() {
+            log('Running comprehensive performance benchmark...', 'info');
+            updateStatus('datasetStatus', 'Running performance benchmarks... This may take several minutes.', 'info');
+            
+            // Auto-load TableVirtualizer if not loaded
+            if (!tableVirtualizer) {
+                log('Loading TableVirtualizer for benchmark...');
+                await loadVirtualizer();
+            }
+            
+            const dataSizes = [100, 1000, 5000, 10000, 25000, 50000, 100000];
+            const results = [];
+            
+            for (let i = 0; i < dataSizes.length; i++) {
+                const size = dataSizes[i];
+                log(`Benchmarking ${size.toLocaleString()} rows... (${i + 1}/${dataSizes.length})`);
+                updateStatus('datasetStatus', `Benchmarking ${size.toLocaleString()} rows... (${i + 1}/${dataSizes.length})`, 'info');
+                
+                // Measure data generation
+                const genStart = performance.now();
+                const data = generateTestData(size);
+                const genTime = performance.now() - genStart;
+                
+                // Measure rendering
+                const renderStart = performance.now();
+                grid.setData(data);
+                const renderTime = performance.now() - renderStart;
+                
+                // Test scroll performance for large datasets
+                let scrollTime = 0;
+                if (size > 5000) {
+                    const scrollStart = performance.now();
+                    const middleRow = Math.floor(size / 2);
+                    
+                    // Scroll to middle
+                    tableVirtualizer.scrollToRow(middleRow, 'center');
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                    
+                    // Scroll to end
+                    tableVirtualizer.scrollToRow(size - 10, 'start');
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                    
+                    // Scroll back to top
+                    tableVirtualizer.scrollToRow(0, 'start');
+                    
+                    scrollTime = performance.now() - scrollStart;
+                }
+                
+                // Get virtualization metrics
+                const metrics = tableVirtualizer.getPerformanceMetrics();
+                
+                results.push({
+                    size,
+                    genTime: parseFloat(genTime.toFixed(2)),
+                    renderTime: parseFloat(renderTime.toFixed(2)),
+                    scrollTime: parseFloat(scrollTime.toFixed(2)),
+                    totalTime: parseFloat((genTime + renderTime).toFixed(2)),
+                    virtualized: metrics.enabled,
+                    visibleRows: metrics.visibleRows,
+                    efficiency: metrics.memoryUsage.efficiency,
+                    rowsPerSecond: Math.round(size / ((genTime + renderTime) / 1000))
+                });
+                
+                log(`${size.toLocaleString()}: Gen ${genTime.toFixed(0)}ms, Render ${renderTime.toFixed(0)}ms${scrollTime > 0 ? `, Scroll ${scrollTime.toFixed(0)}ms` : ''}`);
+                
+                // Short delay to prevent blocking
+                await new Promise(resolve => setTimeout(resolve, 300));
+            }
+            
+            // Display comprehensive results
+            let resultHTML = '<h4>Comprehensive Performance Benchmark</h4>';
+            resultHTML += '<table style="width:100%; border-collapse: collapse; font-size: 13px;">';
+            resultHTML += '<thead><tr style="border-bottom: 2px solid #ddd; font-weight: bold; background: #f8f9fa;">';
+            resultHTML += '<th style="padding: 8px;">Rows</th><th>Gen (ms)</th><th>Render (ms)</th><th>Scroll (ms)</th><th>Total (ms)</th><th>Rows/sec</th><th>Virtualized</th><th>Visible</th><th>Efficiency</th>';
+            resultHTML += '</tr></thead><tbody>';
+            
+            results.forEach((result, index) => {
+                const isExtreme = result.size >= 100000;
+                const isLarge = result.size >= 50000;
+                const isMedium = result.size >= 10000;
+                
+                let bgColor = '#ffffff';
+                if (isExtreme) bgColor = result.totalTime > 2000 ? '#f8d7da' : '#fff3cd';
+                else if (isLarge) bgColor = result.totalTime > 1000 ? '#fff3cd' : '#d4edda';
+                else if (isMedium) bgColor = result.totalTime > 500 ? '#f8f9fa' : '#d4edda';
+                else bgColor = '#d4edda';
+                
+                resultHTML += `<tr style="border-bottom: 1px solid #eee; background-color: ${bgColor};">
+                    <td style="padding: 6px; font-weight: ${isExtreme ? 'bold' : 'normal'};">${result.size.toLocaleString()}</td>
+                    <td style="text-align: right;">${result.genTime}</td>
+                    <td style="text-align: right;">${result.renderTime}</td>
+                    <td style="text-align: right;">${result.scrollTime > 0 ? result.scrollTime : '-'}</td>
+                    <td style="text-align: right; font-weight: bold;">${result.totalTime}</td>
+                    <td style="text-align: right;">${result.rowsPerSecond.toLocaleString()}</td>
+                    <td style="text-align: center;">${result.virtualized ? '✓' : '✗'}</td>
+                    <td style="text-align: right;">${result.visibleRows}</td>
+                    <td style="text-align: right;">${result.efficiency}</td>
+                </tr>`;
+            });
+            
+            resultHTML += '</tbody></table>';
+            
+            // Performance analysis
+            const extremeResult = results.find(r => r.size === 100000);
+            let analysis = '<h5>Performance Analysis</h5><ul>';
+            
+            if (extremeResult) {
+                if (extremeResult.totalTime < 1000) {
+                    analysis += `<li style="color: green;">✅ Excellent: 100K rows rendered in ${extremeResult.totalTime}ms</li>`;
+                } else if (extremeResult.totalTime < 2000) {
+                    analysis += `<li style="color: orange;">⚠️ Good: 100K rows rendered in ${extremeResult.totalTime}ms</li>`;
+                } else {
+                    analysis += `<li style="color: red;">⚠️ Slow: 100K rows took ${extremeResult.totalTime}ms - needs optimization</li>`;
+                }
+                
+                analysis += `<li>Memory efficiency: ${extremeResult.efficiency} (only ${extremeResult.visibleRows} rows rendered out of ${extremeResult.size.toLocaleString()})</li>`;
+                
+                if (extremeResult.scrollTime > 0) {
+                    analysis += `<li>Scroll test completed in ${extremeResult.scrollTime}ms</li>`;
+                }
+            }
+            
+            analysis += '</ul>';
+            
+            document.getElementById('metricsDisplay').innerHTML = resultHTML + analysis;
+            updateStatus('datasetStatus', 'Performance benchmark completed successfully!', 'success');
+            log('Comprehensive benchmark completed! Check results above.', 'success');
+        }
+
+        function testScrollPerformance() {
+            if (!tableVirtualizer || currentDatasetSize === 0) {
+                log('Please load data and TableVirtualizer first', 'error');
+                return;
+            }
+
+            log('Testing scroll performance...', 'info');
+            
+            const scrollPositions = [0, 25, 50, 75, 90]; // Percentage positions
+            let currentIndex = 0;
+            
+            function scrollToNextPosition() {
+                if (currentIndex >= scrollPositions.length) {
+                    log('✓ Scroll performance test completed', 'success');
+                    return;
+                }
+                
+                const percentage = scrollPositions[currentIndex];
+                const targetRow = Math.floor((percentage / 100) * currentDatasetSize);
+                
+                const startTime = performance.now();
+                tableVirtualizer.scrollToRow(targetRow, 'center');
+                
+                // Measure time until scroll settles
+                setTimeout(() => {
+                    const scrollTime = performance.now() - startTime;
+                    log(`Scroll to ${percentage}% (row ${targetRow}): ${scrollTime.toFixed(2)}ms`);
+                    
+                    currentIndex++;
+                    setTimeout(scrollToNextPosition, 500); // Wait before next scroll
+                }, 100);
+            }
+            
+            scrollToNextPosition();
+        }
+
+        function testStickyHeader() {
+            if (!tableVirtualizer || currentDatasetSize === 0) {
+                log('Please load data and TableVirtualizer first', 'error');
+                return;
+            }
+
+            log('Testing sticky header functionality...', 'info');
+            
+            // First scroll to top to ensure header is visible
+            tableVirtualizer.scrollToRow(0, 'start');
+            
+            setTimeout(() => {
+                // Then scroll to various positions and check if header stays visible
+                const testPositions = [
+                    { row: Math.floor(currentDatasetSize * 0.1), label: '10%' },
+                    { row: Math.floor(currentDatasetSize * 0.5), label: '50%' },
+                    { row: Math.floor(currentDatasetSize * 0.9), label: '90%' },
+                    { row: currentDatasetSize - 10, label: 'Near End' }
+                ];
+                
+                let testIndex = 0;
+                
+                function runNextTest() {
+                    if (testIndex >= testPositions.length) {
+                        // Scroll back to top to finish
+                        tableVirtualizer.scrollToRow(0, 'start');
+                        log('✅ Sticky header test completed! Header should remain visible throughout scrolling.', 'success');
+                        updateStatus('virtualizationStatus', 'Sticky header test completed successfully!', 'success');
+                        return;
+                    }
+                    
+                    const test = testPositions[testIndex];
+                    log(`Scrolling to ${test.label} (row ${test.row})...`);
+                    
+                    tableVirtualizer.scrollToRow(test.row, 'center');
+                    
+                    // Wait for scroll to complete
+                    setTimeout(() => {
+                        // Check if header is still visible
+                        const grid = tableVirtualizer.getGrid();
+                        const shadowRoot = grid?.shadowRoot;
+                        const header = shadowRoot?.querySelector('.virtualized-table-header');
+                        
+                        if (header) {
+                            const headerRect = header.getBoundingClientRect();
+                            const isVisible = headerRect.top >= 0 && headerRect.height > 0;
+                            
+                            if (isVisible) {
+                                log(`✓ Header visible at ${test.label}`, 'success');
+                            } else {
+                                log(`⚠ Header may not be fully visible at ${test.label}`, 'error');
+                            }
+                        }
+                        
+                        testIndex++;
+                        setTimeout(runNextTest, 800); // Wait between tests
+                    }, 300);
+                }
+                
+                updateStatus('virtualizationStatus', 'Running sticky header test...', 'info');
+                runNextTest();
+            }, 500);
+        }
+
+        // Make the new function globally accessible
+        window.testStickyHeader = testStickyHeader;
+    </script>
+</body>
+</html>

@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Default Sticky Header Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 20px; border: 1px solid #ddd; }
+        .controls { margin: 10px 0; }
+        button { margin: 5px; padding: 8px 12px; }
+        .grid-container { margin: 20px 0; height: 400px; border: 1px solid #ccc; }
+        .status { padding: 10px; margin: 10px 0; border-radius: 4px; }
+        .success { background-color: #d4edda; border: 1px solid #c3e6cb; color: #155724; }
+        .error { background-color: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; }
+        .info { background-color: #d1ecf1; border: 1px solid #bee5eb; color: #0c5460; }
+        #output { margin-top: 10px; font-family: monospace; background: #f5f5f5; padding: 10px; max-height: 200px; overflow-y: auto; }
+    </style>
+</head>
+<body>
+    <h1>Default Sticky Header Test</h1>
+    <p>This test verifies that sticky headers are now the default for all table layouts in SwivelGrid.</p>
+
+    <div class="test-section">
+        <h2>Basic Test</h2>
+        <div class="controls">
+            <button onclick="testBasicStickyHeader()">Test Basic Sticky Header</button>
+            <button onclick="testSortingWithStickyHeader()">Test Sorting with Sticky Header</button>
+            <button onclick="testVirtualizationWithStickyHeader()">Test Virtualization with Sticky Header</button>
+            <button onclick="clearGrid()">Clear Grid</button>
+        </div>
+        <div id="status" class="status">No tests run yet</div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test Grid</h2>
+        <div class="grid-container">
+            <swivel-grid id="testGrid"></swivel-grid>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test Output</h2>
+        <div id="output"></div>
+    </div>
+
+    <!-- Include SwivelGrid and extensions -->
+    <script src="src/SwivelGrid.js"></script>
+    <script src="extensions/BaseExtension.js"></script>
+    <script src="extensions/LayoutRendererExtension.js"></script>
+    <script src="extensions/SortingExtension.js"></script>
+    <script src="extensions/TemplateExtension.js"></script>
+    <script src="extensions/TableVirtualizer.js"></script>
+
+    <script>
+        let grid;
+
+        function log(message, type = 'info') {
+            const output = document.getElementById('output');
+            const timestamp = new Date().toLocaleTimeString();
+            const logClass = type === 'error' ? 'color: red' : type === 'success' ? 'color: green' : 'color: blue';
+            output.innerHTML += `<div style="${logClass}">[${timestamp}] ${message}</div>`;
+            output.scrollTop = output.scrollHeight;
+            console.log(`[${timestamp}] ${message}`);
+        }
+
+        function updateStatus(message, type) {
+            const statusEl = document.getElementById('status');
+            statusEl.textContent = message;
+            statusEl.className = `status ${type}`;
+        }
+
+        function generateTestData(count) {
+            const categories = ['Electronics', 'Books', 'Clothing', 'Home', 'Sports'];
+            const statuses = ['Active', 'Inactive', 'Pending', 'Sold'];
+            
+            return Array.from({ length: count }, (_, i) => ({
+                id: i + 1,
+                name: `Product ${i + 1}`,
+                category: categories[i % categories.length],
+                price: Math.floor(Math.random() * 1000) + 10,
+                rating: `${Math.floor(Math.random() * 5) + 1}/5`,
+                status: statuses[i % statuses.length]
+            }));
+        }
+
+        function setupTestSchema() {
+            return [
+                { key: 'id', label: 'ID', sortable: true },
+                { key: 'name', label: 'Product Name', sortable: true },
+                { key: 'category', label: 'Category', sortable: true },
+                { key: 'price', label: 'Price', sortable: true },
+                { key: 'rating', label: 'Rating', sortable: true },
+                { key: 'status', label: 'Status', sortable: true }
+            ];
+        }
+
+        function testBasicStickyHeader() {
+            log('Testing basic sticky header functionality...');
+            updateStatus('Running basic sticky header test...', 'info');
+
+            try {
+                // Initialize grid with basic data
+                grid = document.getElementById('testGrid');
+                const schema = setupTestSchema();
+                const data = generateTestData(50);
+
+                grid.schema = schema;
+                grid.setData(data);
+
+                setTimeout(() => {
+                    // Check if sticky header structure is present
+                    const shadowRoot = grid.shadowRoot;
+                    const stickyWrapper = shadowRoot.querySelector('.sticky-table-wrapper');
+                    const stickyHeader = shadowRoot.querySelector('.sticky-table-header');
+                    const stickyContainer = shadowRoot.querySelector('.sticky-table-container');
+
+                    if (stickyWrapper && stickyHeader && stickyContainer) {
+                        log('✅ Sticky header structure detected', 'success');
+                        log('✅ Found: .sticky-table-wrapper', 'success');
+                        log('✅ Found: .sticky-table-header', 'success');
+                        log('✅ Found: .sticky-table-container', 'success');
+                        updateStatus('Basic sticky header test passed!', 'success');
+                    } else {
+                        log('❌ Sticky header structure not found', 'error');
+                        updateStatus('Basic sticky header test failed!', 'error');
+                    }
+                }, 500);
+
+            } catch (error) {
+                log(`❌ Error: ${error.message}`, 'error');
+                updateStatus('Basic sticky header test failed!', 'error');
+            }
+        }
+
+        function testSortingWithStickyHeader() {
+            if (!grid) {
+                log('❌ Please run basic test first', 'error');
+                return;
+            }
+
+            log('Testing sorting functionality with sticky header...');
+            updateStatus('Testing sorting with sticky header...', 'info');
+
+            try {
+                const shadowRoot = grid.shadowRoot;
+                const firstHeader = shadowRoot.querySelector('th[data-key]');
+
+                if (firstHeader) {
+                    log(`Found sortable header: ${firstHeader.dataset.key}`);
+                    
+                    // Simulate click on header
+                    firstHeader.click();
+                    
+                    setTimeout(() => {
+                        const hasSortClass = firstHeader.classList.contains('sort-asc') || firstHeader.classList.contains('sort-desc');
+                        const hasSortIndicator = firstHeader.textContent.includes('↑') || firstHeader.textContent.includes('↓');
+                        
+                        if (hasSortClass || hasSortIndicator) {
+                            log('✅ Sorting indicators working with sticky header', 'success');
+                            updateStatus('Sorting test with sticky header passed!', 'success');
+                        } else {
+                            log('❌ Sorting indicators not found', 'error');
+                            updateStatus('Sorting test with sticky header failed!', 'error');
+                        }
+                    }, 300);
+                } else {
+                    log('❌ No sortable headers found', 'error');
+                    updateStatus('No sortable headers found!', 'error');
+                }
+            } catch (error) {
+                log(`❌ Error: ${error.message}`, 'error');
+                updateStatus('Sorting test failed!', 'error');
+            }
+        }
+
+        function testVirtualizationWithStickyHeader() {
+            log('Testing virtualization with sticky header...');
+            updateStatus('Testing virtualization with sticky header...', 'info');
+
+            try {
+                // Load large dataset to trigger virtualization
+                const schema = setupTestSchema();
+                const data = generateTestData(1000);
+
+                grid.schema = schema;
+                grid.setData(data);
+
+                setTimeout(() => {
+                    const shadowRoot = grid.shadowRoot;
+                    const virtualizedWrapper = shadowRoot.querySelector('.sticky-table-wrapper.virtualized');
+                    const virtualSpacers = shadowRoot.querySelectorAll('.virtual-spacer-top, .virtual-spacer-bottom');
+
+                    if (virtualizedWrapper && virtualSpacers.length > 0) {
+                        log('✅ Virtualization working with sticky headers', 'success');
+                        log(`✅ Found virtual spacers: ${virtualSpacers.length}`, 'success');
+                        updateStatus('Virtualization test with sticky header passed!', 'success');
+                    } else {
+                        log('❌ Virtualization not detected or not using sticky structure', 'error');
+                        updateStatus('Virtualization test failed!', 'error');
+                    }
+                }, 500);
+
+            } catch (error) {
+                log(`❌ Error: ${error.message}`, 'error');
+                updateStatus('Virtualization test failed!', 'error');
+            }
+        }
+
+        function clearGrid() {
+            if (grid) {
+                grid.setData([]);
+                log('Grid cleared');
+                updateStatus('Grid cleared', 'info');
+            }
+        }
+
+        // Auto-run basic test on load
+        document.addEventListener('DOMContentLoaded', () => {
+            log('Page loaded. Ready for testing.');
+            setTimeout(() => {
+                testBasicStickyHeader();
+            }, 1000);
+        });
+    </script>
+</body>
+</html>
