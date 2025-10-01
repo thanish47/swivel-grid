@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grid Virtualization Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 20px; border: 1px solid #ddd; }
+        .controls { margin: 10px 0; }
+        button { margin: 5px; padding: 8px 12px; }
+        .grid-container { margin: 20px 0; height: 600px; border: 1px solid #ccc; }
+        .status { padding: 10px; margin: 10px 0; border-radius: 4px; }
+        .success { background-color: #d4edda; border: 1px solid #c3e6cb; color: #155724; }
+        .error { background-color: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; }
+        .info { background-color: #d1ecf1; border: 1px solid #bee5eb; color: #0c5460; }
+        #output { margin-top: 10px; font-family: monospace; background: #f5f5f5; padding: 10px; max-height: 300px; overflow-y: auto; }
+        .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin: 10px 0; }
+        .metric { padding: 10px; background: #f8f9fa; border-radius: 4px; }
+        .metric h4 { margin: 0 0 5px 0; }
+        .settings { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 10px; margin: 10px 0; }
+        .setting { padding: 10px; border: 1px solid #ddd; border-radius: 4px; }
+        .setting label { display: block; margin-bottom: 5px; font-weight: bold; }
+        .setting input { width: 100%; padding: 5px; }
+    </style>
+</head>
+<body>
+    <h1>Grid Virtualization Test</h1>
+    
+    <div class="test-section">
+        <h2>Performance Metrics</h2>
+        <div id="metricsDisplay" class="metrics"></div>
+        <div class="controls">
+            <button onclick="updateMetrics()">Refresh Metrics</button>
+            <button onclick="benchmarkGridPerformance()">Run Performance Benchmark</button>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>Virtualization Settings</h2>
+        <div class="settings">
+            <div class="setting">
+                <label for="cardHeight">Card Height (px)</label>
+                <input type="number" id="cardHeight" value="200" min="100" max="500" onchange="updateCardHeight()">
+            </div>
+            <div class="setting">
+                <label for="cardWidth">Min Card Width (px)</label>
+                <input type="number" id="cardWidth" value="250" min="150" max="400" onchange="updateCardWidth()">
+            </div>
+            <div class="setting">
+                <label for="cardGap">Gap (px)</label>
+                <input type="number" id="cardGap" value="16" min="0" max="50" onchange="updateGap()">
+            </div>
+            <div class="setting">
+                <label for="overscan">Overscan (cards)</label>
+                <input type="number" id="overscan" value="10" min="0" max="50" onchange="updateOverscan()">
+            </div>
+        </div>
+        <div id="settingsStatus" class="status">Adjust settings above to customize virtualization</div>
+    </div>
+
+    <div class="test-section">
+        <h2>Dataset Controls</h2>
+        <div class="controls">
+            <button onclick="loadSmallGrid()">Load Small Grid (15 cards)</button>
+            <button onclick="loadMediumGrid()">Load Medium Grid (50 cards)</button>
+            <button onclick="loadLargeGrid()">Load Large Grid (500 cards)</button>
+            <button onclick="loadHugeGrid()">Load Huge Grid (2,000 cards)</button>
+            <button onclick="loadExtremeGrid()">Load Extreme Grid (20,000 cards)</button>
+            <button onclick="loadGigaGrid()">Load Giga Grid (100,000 cards)</button>
+        </div>
+        <div id="datasetStatus" class="status">No dataset loaded</div>
+    </div>
+
+    <div class="test-section">
+        <h2>Virtualization Controls</h2>
+        <div class="controls">
+            <button onclick="loadGridVirtualizer()">Load GridVirtualizer</button>
+            <button onclick="unloadGridVirtualizer()">Unload Virtualizer</button>
+            <button onclick="toggleGridVirtualization()">Toggle Virtualization</button>
+            <button onclick="scrollToCard(250)">Scroll to Card 250</button>
+            <button onclick="scrollToCard(1000)">Scroll to Card 1000</button>
+            <button onclick="scrollToCard(10000)">Scroll to Card 10000</button>
+            <button onclick="testResponsive()">Test Responsive Behavior</button>
+        </div>
+        <div id="virtualizationStatus" class="status">GridVirtualizer not loaded</div>
+    </div>
+
+    <div class="test-section">
+        <h2>Virtualized Grid</h2>
+        <div class="grid-container">
+            <swivel-grid id="virtualizedGrid" layout-type="grid"></swivel-grid>
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Test Output</h2>
+        <div id="output"></div>
+    </div>
+
+    <!-- Load core and extensions -->
+    <script src="SwivelGrid.js"></script>
+    <script src="extensions/BaseExtension.js"></script>
+    <script src="extensions/LayoutRendererExtension.js"></script>
+    <script src="extensions/TemplateExtension.js"></script>
+    <script src="extensions/SortingExtension.js"></script>
+    <script src="extensions/GridVirtualizer.js"></script>
+    
+    <!-- Load bundles for easy setup -->
+    <script src="bundles/StandardBundle.js"></script>
+    <script src="bundles/AdvancedBundle.js"></script>
+    <script src="bundles/BundleLoader.js"></script>
+    <script src="bundles/index.js"></script>
+
+    <script>
+        let grid;
+        let gridVirtualizer = null;
+        let currentDatasetSize = 0;
+        let performanceData = [];
+
+        function log(message, type = 'info') {
+            const output = document.getElementById('output');
+            const timestamp = new Date().toLocaleTimeString();
+            const div = document.createElement('div');
+            div.style.color = type === 'error' ? 'red' : type === 'success' ? 'green' : 'black';
+            div.textContent = `[${timestamp}] ${message}`;
+            output.appendChild(div);
+            output.scrollTop = output.scrollHeight;
+            console.log(message);
+        }
+
+        function updateStatus(elementId, message, type = 'info') {
+            const element = document.getElementById(elementId);
+            element.textContent = message;
+            element.className = `status ${type}`;
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', async function() {
+            grid = document.getElementById('virtualizedGrid');
+            
+            // Load basic extensions
+            await SwivelGridBundles.loadStandard(grid);
+            log('Standard bundle loaded');
+            
+            // Set up event listeners
+            grid.addEventListener('swivel:virtualization-update', handleVirtualizationUpdate);
+            
+            log('Grid virtualization test page loaded');
+        });
+
+        function handleVirtualizationUpdate(event) {
+            const { oldRange, newRange, visibleCardCount, totalCards, columnsPerRow } = event.detail;
+            log(`Grid update: showing ${visibleCardCount} of ${totalCards} cards (${newRange.start}-${newRange.end}), ${columnsPerRow} columns`);
+        }
+
+        async function loadGridVirtualizer() {
+            try {
+                if (!gridVirtualizer) {
+                    gridVirtualizer = new GridVirtualizer();
+                    grid.registerExtension(gridVirtualizer);
+                    log('✓ GridVirtualizer loaded', 'success');
+                    updateStatus('virtualizationStatus', 'GridVirtualizer loaded and active', 'success');
+                } else {
+                    log('GridVirtualizer already loaded', 'info');
+                }
+            } catch (error) {
+                log(`Error loading GridVirtualizer: ${error.message}`, 'error');
+                updateStatus('virtualizationStatus', `Error: ${error.message}`, 'error');
+            }
+        }
+
+        function unloadGridVirtualizer() {
+            if (gridVirtualizer) {
+                grid.unregisterExtension('grid-virtualizer');
+                gridVirtualizer = null;
+                log('✓ GridVirtualizer unloaded', 'success');
+                updateStatus('virtualizationStatus', 'GridVirtualizer unloaded', 'info');
+            } else {
+                log('GridVirtualizer not loaded', 'info');
+            }
+        }
+
+        function toggleGridVirtualization() {
+            if (gridVirtualizer) {
+                const isEnabled = gridVirtualizer.isVirtualizationEnabled(currentDatasetSize);
+                log(`Grid virtualization currently ${isEnabled ? 'enabled' : 'disabled'} for ${currentDatasetSize} cards`);
+                
+                if (currentDatasetSize > 0) {
+                    grid.render(); // Re-render to apply changes
+                    log('Grid re-rendered');
+                }
+            } else {
+                log('Please load GridVirtualizer first', 'error');
+            }
+        }
+
+        function generateCardData(count) {
+            const categories = ['Electronics', 'Fashion', 'Home & Garden', 'Sports', 'Books', 'Automotive', 'Health', 'Beauty'];
+            const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FECA57', '#FF9FF3', '#54A0FF', '#5F27CD'];
+            const brands = ['TechCorp', 'StyleCo', 'HomeMax', 'SportsPro', 'BookWorld', 'AutoTech', 'HealthPlus', 'BeautyLab'];
+            
+            const startTime = performance.now();
+            
+            const data = [];
+            for (let i = 0; i < count; i++) {
+                const categoryIndex = i % categories.length;
+                data.push({
+                    id: i + 1,
+                    title: `${categories[categoryIndex]} Item ${i + 1}`,
+                    category: categories[categoryIndex],
+                    brand: brands[categoryIndex],
+                    price: Math.floor(Math.random() * 500) + 20,
+                    rating: `${Math.floor(Math.random() * 5) + 1}/5`,
+                    image: {
+                        src: `data:image/svg+xml,<svg width="200" height="150" xmlns="http://www.w3.org/2000/svg"><rect width="200" height="150" fill="${colors[categoryIndex]}"/><text x="100" y="80" text-anchor="middle" fill="white" font-size="16">Item ${i + 1}</text></svg>`,
+                        alt: `${categories[categoryIndex]} Item ${i + 1}`
+                    },
+                    description: `High-quality ${categories[categoryIndex].toLowerCase()} product with premium features. Item ${i + 1} offers excellent value and performance.`,
+                    inStock: Math.random() > 0.1,
+                    featured: Math.random() > 0.8,
+                    discount: Math.random() > 0.7 ? Math.floor(Math.random() * 30) + 5 : 0,
+                    dateAdded: new Date(2024, Math.floor(Math.random() * 12), Math.floor(Math.random() * 28) + 1).toISOString().split('T')[0],
+                    tags: [`tag${(i % 5) + 1}`, `category-${categoryIndex}`, Math.random() > 0.5 ? 'popular' : 'new']
+                });
+            }
+            
+            const endTime = performance.now();
+            log(`Generated ${count} card data in ${(endTime - startTime).toFixed(2)}ms`);
+            
+            return data;
+        }
+
+        function setupGridSchema() {
+            return [
+                { key: 'image', label: 'Image', cellTemplate: '{{renderImage image}}' },
+                { key: 'title', label: 'Title', cellTemplate: '{{renderText title}}' },
+                { key: 'category', label: 'Category', cellTemplate: '{{renderText category}}' },
+                { key: 'brand', label: 'Brand', cellTemplate: '{{renderText brand}}' },
+                { key: 'price', label: 'Price', cellTemplate: '{{formatCurrency price}}' },
+                { key: 'rating', label: 'Rating', cellTemplate: '{{renderRating rating}}' },
+                { key: 'description', label: 'Description', cellTemplate: '{{renderText description}}' },
+                { key: 'dateAdded', label: 'Date Added', cellTemplate: '{{formatDate dateAdded}}' }
+            ];
+        }
+
+        function loadGridDataset(size, label) {
+            const startTime = performance.now();
+            
+            log(`Loading ${label} (${size.toLocaleString()} cards)...`);
+            
+            const schema = setupGridSchema();
+            const data = generateCardData(size);
+            
+            grid.schema = schema;
+            grid.setData(data);
+            
+            currentDatasetSize = size;
+            
+            const endTime = performance.now();
+            const loadTime = endTime - startTime;
+            
+            log(`✓ ${label} loaded in ${loadTime.toFixed(2)}ms`, 'success');
+            updateStatus('datasetStatus', `${label}: ${size.toLocaleString()} cards loaded`, 'success');
+            
+            // Store performance data
+            performanceData.push({
+                timestamp: new Date(),
+                datasetSize: size,
+                loadTime: loadTime,
+                virtualized: gridVirtualizer && gridVirtualizer.isVirtualizationEnabled(size)
+            });
+            
+            updateMetrics();
+        }
+
+        function loadSmallGrid() { loadGridDataset(15, 'Small Grid'); }
+        function loadMediumGrid() { loadGridDataset(50, 'Medium Grid'); }
+        function loadLargeGrid() { loadGridDataset(500, 'Large Grid'); }
+        function loadHugeGrid() { loadGridDataset(2000, 'Huge Grid'); }
+        function loadExtremeGrid() { loadGridDataset(20000, 'Extreme Grid'); }
+        function loadGigaGrid() { loadGridDataset(100000, 'Giga Grid'); }
+
+        function scrollToCard(cardIndex) {
+            if (gridVirtualizer && currentDatasetSize > 0) {
+                log(`Scrolling to card ${cardIndex}...`);
+                gridVirtualizer.scrollToCard(cardIndex, 'center');
+                log(`✓ Scrolled to card ${cardIndex}`, 'success');
+            } else {
+                log('GridVirtualizer not loaded or no data', 'error');
+            }
+        }
+
+        function updateCardHeight() {
+            const height = parseInt(document.getElementById('cardHeight').value);
+            if (gridVirtualizer) {
+                gridVirtualizer.setEstimatedCardHeight(height);
+                log(`Card height updated to ${height}px`);
+                updateStatus('settingsStatus', `Card height: ${height}px`, 'success');
+            }
+        }
+
+        function updateCardWidth() {
+            const width = parseInt(document.getElementById('cardWidth').value);
+            if (gridVirtualizer) {
+                gridVirtualizer.setMinCardWidth(width);
+                log(`Min card width updated to ${width}px`);
+                updateStatus('settingsStatus', `Min card width: ${width}px`, 'success');
+            }
+        }
+
+        function updateGap() {
+            const gap = parseInt(document.getElementById('cardGap').value);
+            if (gridVirtualizer) {
+                gridVirtualizer.setGap(gap);
+                log(`Card gap updated to ${gap}px`);
+                updateStatus('settingsStatus', `Gap: ${gap}px`, 'success');
+            }
+        }
+
+        function updateOverscan() {
+            const overscan = parseInt(document.getElementById('overscan').value);
+            if (gridVirtualizer) {
+                gridVirtualizer.setOverscan(overscan);
+                log(`Overscan updated to ${overscan} cards`);
+                updateStatus('settingsStatus', `Overscan: ${overscan} cards`, 'success');
+            }
+        }
+
+        function updateMetrics() {
+            if (gridVirtualizer) {
+                const metrics = gridVirtualizer.getPerformanceMetrics();
+                displayGridMetrics(metrics);
+            } else {
+                log('GridVirtualizer not loaded', 'info');
+            }
+        }
+
+        function displayGridMetrics(metrics) {
+            const metricsEl = document.getElementById('metricsDisplay');
+            metricsEl.innerHTML = `
+                <div class="metric">
+                    <h4>Virtualization Status</h4>
+                    <p>${metrics.enabled ? '✅ Enabled' : '❌ Disabled'}</p>
+                </div>
+                <div class="metric">
+                    <h4>Total Cards</h4>
+                    <p>${metrics.totalCards.toLocaleString()}</p>
+                </div>
+                <div class="metric">
+                    <h4>Visible Cards</h4>
+                    <p>${metrics.visibleCards} / ${metrics.totalCards}</p>
+                </div>
+                <div class="metric">
+                    <h4>Columns Per Row</h4>
+                    <p>${metrics.columnsPerRow}</p>
+                </div>
+                <div class="metric">
+                    <h4>Memory Efficiency</h4>
+                    <p>${metrics.memoryUsage.efficiency}</p>
+                </div>
+                <div class="metric">
+                    <h4>Card Dimensions</h4>
+                    <p>${metrics.cardWidth}px × ${metrics.estimatedCardHeight}px</p>
+                </div>
+                <div class="metric">
+                    <h4>Gap</h4>
+                    <p>${metrics.gap}px</p>
+                </div>
+                <div class="metric">
+                    <h4>Overscan</h4>
+                    <p>${metrics.overscan} cards</p>
+                </div>
+                <div class="metric">
+                    <h4>Height Cache</h4>
+                    <p>${metrics.heightCacheSize} cached heights</p>
+                </div>
+                <div class="metric">
+                    <h4>Render Count</h4>
+                    <p>${metrics.renderCount}</p>
+                </div>
+                <div class="metric">
+                    <h4>Last Render Time</h4>
+                    <p>${metrics.lastRenderTime.toFixed(2)}ms</p>
+                </div>
+            `;
+        }
+
+        async function benchmarkGridPerformance() {
+            if (!gridVirtualizer) {
+                log('Please load GridVirtualizer first', 'error');
+                return;
+            }
+
+            log('Running grid performance benchmark...', 'info');
+            
+            const dataSizes = [50, 200, 500, 1000, 5000, 10000, 25000];
+            const results = [];
+            
+            for (const size of dataSizes) {
+                log(`Benchmarking ${size.toLocaleString()} cards...`);
+                
+                // Measure data generation
+                const genStart = performance.now();
+                const data = generateCardData(size);
+                const genTime = performance.now() - genStart;
+                
+                // Measure rendering
+                const renderStart = performance.now();
+                grid.setData(data);
+                const renderTime = performance.now() - renderStart;
+                
+                // Get virtualization metrics
+                const metrics = gridVirtualizer.getPerformanceMetrics();
+                
+                results.push({
+                    size,
+                    genTime,
+                    renderTime,
+                    virtualized: metrics.enabled,
+                    visibleCards: metrics.visibleCards,
+                    columnsPerRow: metrics.columnsPerRow,
+                    efficiency: metrics.memoryUsage.efficiency
+                });
+                
+                // Short delay to prevent blocking
+                await new Promise(resolve => setTimeout(resolve, 150));
+            }
+            
+            // Display benchmark results
+            log('Grid Performance Benchmark Results:', 'success');
+            results.forEach(result => {
+                log(`${result.size.toLocaleString()} cards: Gen ${result.genTime.toFixed(1)}ms, ` +
+                    `Render ${result.renderTime.toFixed(1)}ms, Virtualized: ${result.virtualized}, ` +
+                    `Cols: ${result.columnsPerRow}, Efficiency: ${result.efficiency}`);
+            });
+        }
+
+        function testResponsive() {
+            if (!gridVirtualizer) {
+                log('Please load GridVirtualizer first', 'error');
+                return;
+            }
+
+            log('Testing responsive behavior...', 'info');
+            
+            const container = document.querySelector('.grid-container');
+            const originalWidth = container.style.width;
+            
+            const widths = ['100%', '800px', '600px', '400px', '300px'];
+            let currentIndex = 0;
+            
+            function testNextWidth() {
+                if (currentIndex >= widths.length) {
+                    container.style.width = originalWidth;
+                    log('✓ Responsive test completed', 'success');
+                    return;
+                }
+                
+                const width = widths[currentIndex];
+                container.style.width = width;
+                
+                // Trigger resize event
+                window.dispatchEvent(new Event('resize'));
+                
+                setTimeout(() => {
+                    const metrics = gridVirtualizer.getPerformanceMetrics();
+                    log(`Width ${width}: ${metrics.columnsPerRow} columns, ${metrics.cardWidth}px card width`);
+                    
+                    currentIndex++;
+                    setTimeout(testNextWidth, 1000);
+                }, 500);
+            }
+            
+            testNextWidth();
+        }
+    </script>
+</body>
+</html>

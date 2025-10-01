@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AdvancedBundle Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 20px; border: 1px solid #ddd; }
+        .controls { margin: 10px 0; }
+        button { margin: 5px; padding: 8px 12px; }
+        .grid-container { margin: 20px 0; }
+        .status { padding: 10px; margin: 10px 0; border-radius: 4px; }
+        .success { background-color: #d4edda; border: 1px solid #c3e6cb; color: #155724; }
+        .error { background-color: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; }
+        .info { background-color: #d1ecf1; border: 1px solid #bee5eb; color: #0c5460; }
+        #output { margin-top: 10px; font-family: monospace; background: #f5f5f5; padding: 10px; max-height: 400px; overflow-y: auto; }
+        #searchInput { padding: 8px; margin: 10px 0; width: 200px; }
+    </style>
+</head>
+<body>
+    <h1>AdvancedBundle Test</h1>
+    
+    <div class="test-section">
+        <h2>Search Test</h2>
+        <input type="text" id="searchInput" placeholder="Search products...">
+        <div id="searchStatus" class="status info">Search input ready (requires SearchExtension)</div>
+    </div>
+
+    <div class="test-section">
+        <h2>Advanced Bundle Tests</h2>
+        <div class="controls">
+            <button onclick="loadAdvancedBundle()">Load Advanced Bundle</button>
+            <button onclick="loadPreset('enterprise')">Load Enterprise Preset</button>
+            <button onclick="loadPreset('dashboard')">Load Dashboard Preset</button>
+            <button onclick="loadCustom()">Load Custom Extensions</button>
+            <button onclick="testAllFeatures()">Test All Features</button>
+            <button onclick="loadFullDataset()">Load Full Dataset</button>
+            <button onclick="testPagination()">Test Pagination</button>
+        </div>
+        <div id="advancedStatus" class="status">AdvancedBundle not loaded</div>
+        <div class="grid-container">
+            <swivel-grid id="advancedGrid"></swivel-grid>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>Preset Testing</h2>
+        <div class="controls">
+            <button onclick="showPresets()">Show Available Presets</button>
+            <button onclick="testPreset('table-focused')">Test Table-Focused</button>
+            <button onclick="testPreset('data-heavy')">Test Data-Heavy</button>
+            <button onclick="testPreset('minimal-interactive')">Test Minimal</button>
+        </div>
+        <div id="presetStatus" class="status">Preset tests ready</div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Test Output</h2>
+        <div id="output"></div>
+    </div>
+
+    <!-- Load core and all extensions -->
+    <script src="SwivelGrid.js"></script>
+    <script src="extensions/BaseExtension.js"></script>
+    <script src="extensions/LayoutRendererExtension.js"></script>
+    <script src="extensions/TemplateExtension.js"></script>
+    <script src="extensions/SortingExtension.js"></script>
+    <script src="extensions/SearchExtension.js"></script>
+    <script src="extensions/PaginationExtension.js"></script>
+    <script src="extensions/CssClassesExtension.js"></script>
+    <script src="extensions/AccessibilityExtension.js"></script>
+    
+    <!-- Load bundles -->
+    <script src="bundles/StandardBundle.js"></script>
+    <script src="bundles/AdvancedBundle.js"></script>
+    <script src="bundles/BundleLoader.js"></script>
+    <script src="bundles/index.js"></script>
+
+    <script>
+        let grid;
+        let currentBundle;
+        let bundleLoader;
+
+        function log(message, type = 'info') {
+            const output = document.getElementById('output');
+            const timestamp = new Date().toLocaleTimeString();
+            const div = document.createElement('div');
+            div.style.color = type === 'error' ? 'red' : type === 'success' ? 'green' : 'black';
+            div.textContent = `[${timestamp}] ${message}`;
+            output.appendChild(div);
+            output.scrollTop = output.scrollHeight;
+            console.log(message);
+        }
+
+        function updateStatus(elementId, message, type = 'info') {
+            const element = document.getElementById(elementId);
+            element.textContent = message;
+            element.className = `status ${type}`;
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            grid = document.getElementById('advancedGrid');
+            bundleLoader = new BundleLoader();
+            log('AdvancedBundle test page loaded');
+            showPresets();
+        });
+
+        async function loadAdvancedBundle() {
+            try {
+                log('Loading AdvancedBundle (all extensions)...');
+                const result = await SwivelGridBundles.loadAdvanced(grid, { verbose: true });
+                
+                if (result.success) {
+                    currentBundle = 'advanced';
+                    updateStatus('advancedStatus', `AdvancedBundle loaded: ${result.loadedExtensions.join(', ')}`, 'success');
+                    log('✓ AdvancedBundle loaded successfully', 'success');
+                    log(`Extensions: ${result.loadedExtensions.join(', ')}`);
+                    
+                    // Set up search input if SearchExtension is loaded
+                    setupSearchInput();
+                } else {
+                    updateStatus('advancedStatus', `Failed to load: ${result.errors.join(', ')}`, 'error');
+                    log(`✗ AdvancedBundle loading failed: ${result.errors.join(', ')}`, 'error');
+                }
+            } catch (error) {
+                log(`Error loading AdvancedBundle: ${error.message}`, 'error');
+                updateStatus('advancedStatus', `Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function loadPreset(presetName) {
+            try {
+                log(`Loading preset: ${presetName}...`);
+                const result = await SwivelGridBundles.loadPreset(grid, presetName, { verbose: true });
+                
+                if (result.success) {
+                    currentBundle = `preset-${presetName}`;
+                    updateStatus('advancedStatus', `Preset '${presetName}' loaded: ${result.loadedExtensions.join(', ')}`, 'success');
+                    log(`✓ Preset '${presetName}' loaded successfully`, 'success');
+                    log(`Extensions: ${result.loadedExtensions.join(', ')}`);
+                    
+                    setupSearchInput();
+                } else {
+                    updateStatus('advancedStatus', `Failed to load preset: ${result.errors.join(', ')}`, 'error');
+                    log(`✗ Preset loading failed: ${result.errors.join(', ')}`, 'error');
+                }
+            } catch (error) {
+                log(`Error loading preset: ${error.message}`, 'error');
+            }
+        }
+
+        async function loadCustom() {
+            try {
+                const customExtensions = ['layout-renderer', 'templates', 'sorting', 'search'];
+                log(`Loading custom extension set: ${customExtensions.join(', ')}...`);
+                
+                const result = await SwivelGridBundles.loadCustom(grid, customExtensions, { verbose: true });
+                
+                if (result.success) {
+                    currentBundle = 'custom';
+                    updateStatus('advancedStatus', `Custom bundle loaded: ${result.loadedExtensions.join(', ')}`, 'success');
+                    log('✓ Custom extension set loaded successfully', 'success');
+                    
+                    setupSearchInput();
+                } else {
+                    updateStatus('advancedStatus', `Failed to load custom: ${result.errors.join(', ')}`, 'error');
+                    log(`✗ Custom loading failed: ${result.errors.join(', ')}`, 'error');
+                }
+            } catch (error) {
+                log(`Error loading custom extensions: ${error.message}`, 'error');
+            }
+        }
+
+        function setupSearchInput() {
+            // Set up search input with SearchExtension
+            const searchExt = grid.getExtension('search');
+            if (searchExt) {
+                grid.searchInput = '#searchInput';
+                grid._searchHandler = function(query) {
+                    log(`Search query: "${query}"`);
+                };
+                updateStatus('searchStatus', 'Search input connected to SearchExtension', 'success');
+            } else {
+                updateStatus('searchStatus', 'SearchExtension not loaded', 'info');
+            }
+        }
+
+        function testAllFeatures() {
+            if (!currentBundle) {
+                log('Please load a bundle first', 'error');
+                return;
+            }
+
+            log('Testing all loaded features...');
+            
+            // Test each extension
+            const extensions = ['layout-renderer', 'templates', 'sorting', 'search', 'pagination', 'css-classes', 'accessibility'];
+            
+            for (const extName of extensions) {
+                const ext = grid.getExtension(extName);
+                if (ext) {
+                    log(`✓ ${extName}: Available and loaded`, 'success');
+                } else {
+                    log(`- ${extName}: Not loaded`, 'info');
+                }
+            }
+        }
+
+        function loadFullDataset() {
+            if (!currentBundle) {
+                log('Please load a bundle first', 'error');
+                return;
+            }
+
+            // Large dataset for testing
+            const schema = [
+                { 
+                    key: 'id', 
+                    label: 'ID',
+                    cellTemplate: '{{renderText id}}',
+                    cellClass: 'id-cell'
+                },
+                { 
+                    key: 'name', 
+                    label: 'Product Name',
+                    cellTemplate: '{{renderText name}}'
+                },
+                { 
+                    key: 'category', 
+                    label: 'Category',
+                    cellTemplate: '{{renderText category}}'
+                },
+                { 
+                    key: 'rating', 
+                    label: 'Rating',
+                    cellTemplate: '{{renderRating rating}}'
+                },
+                { 
+                    key: 'price', 
+                    label: 'Price',
+                    cellTemplate: '{{formatCurrency price}}'
+                },
+                { 
+                    key: 'releaseDate', 
+                    label: 'Release Date',
+                    cellTemplate: '{{formatDate releaseDate}}'
+                }
+            ];
+
+            const categories = ['Electronics', 'Books', 'Clothing', 'Home', 'Sports'];
+            const products = ['Laptop', 'Phone', 'Tablet', 'Monitor', 'Keyboard', 'Mouse', 'Headphones'];
+            
+            const rows = [];
+            for (let i = 1; i <= 50; i++) {
+                rows.push({
+                    id: i,
+                    name: `${products[i % products.length]} ${Math.floor(Math.random() * 100)}`,
+                    category: categories[i % categories.length],
+                    rating: `${Math.floor(Math.random() * 5) + 1}/5`,
+                    price: Math.floor(Math.random() * 1000) + 50,
+                    releaseDate: new Date(2020 + Math.floor(Math.random() * 4), Math.floor(Math.random() * 12), Math.floor(Math.random() * 28) + 1).toISOString().split('T')[0]
+                });
+            }
+
+            grid.schema = schema;
+            grid.setData(rows);
+            
+            log(`✓ Full dataset loaded: ${rows.length} items with templates`, 'success');
+        }
+
+        function testPagination() {
+            const paginationExt = grid.getExtension('pagination');
+            if (paginationExt) {
+                log('✓ PaginationExtension is available', 'success');
+                
+                // Set up pagination
+                grid.pageSize = 10;
+                grid.totalPages = 5;
+                grid.loadMoreCallback = function() {
+                    log('Load more callback triggered');
+                    // Simulate loading more data
+                    setTimeout(() => {
+                        grid.loading = false;
+                    }, 1000);
+                };
+                
+                log('Pagination configured: 10 items per page, 5 total pages');
+            } else {
+                log('✗ PaginationExtension not loaded', 'error');
+            }
+        }
+
+        function showPresets() {
+            try {
+                const presets = SwivelGridBundles.getPresets();
+                log('Available presets:', 'success');
+                for (const preset of presets) {
+                    log(`  - ${preset}`);
+                }
+                updateStatus('presetStatus', `${presets.length} presets available`, 'info');
+            } catch (error) {
+                log(`Error showing presets: ${error.message}`, 'error');
+            }
+        }
+
+        async function testPreset(presetName) {
+            try {
+                log(`Testing preset: ${presetName}`);
+                
+                // Create temporary grid for testing
+                const testGrid = document.createElement('swivel-grid');
+                const result = await bundleLoader.loadPreset(testGrid, presetName, { verbose: true });
+                
+                if (result.success) {
+                    log(`✓ Preset '${presetName}' test successful`, 'success');
+                    log(`Extensions loaded: ${result.loadedExtensions.join(', ')}`);
+                } else {
+                    log(`✗ Preset '${presetName}' test failed: ${result.errors.join(', ')}`, 'error');
+                }
+            } catch (error) {
+                log(`Error testing preset: ${error.message}`, 'error');
+            }
+        }
+
+        // Set up search input listener
+        document.getElementById('searchInput').addEventListener('input', function(e) {
+            const searchExt = grid.getExtension('search');
+            if (searchExt) {
+                // SearchExtension will handle this automatically if connected
+                log(`Search input: "${e.target.value}"`);
+            }
+        });
+
+        // Test keyboard navigation (accessibility)
+        document.addEventListener('keydown', function(e) {
+            if (e.target.tagName === 'SWIVEL-GRID') {
+                const accessExt = grid.getExtension('accessibility');
+                if (accessExt && (e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'Enter')) {
+                    log(`Accessibility: ${e.key} key pressed on grid`);
+                }
+            }
+        });
+    </script>
+</body>
+</html>
