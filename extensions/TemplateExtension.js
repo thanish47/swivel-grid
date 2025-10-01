@@ -31,21 +31,32 @@ class TemplateExtension extends BaseExtension {
         }
 
         try {
-            // Simple template interpolation with context variables
+            // Enhanced template interpolation with helper function support
             return template.replace(/\{\{\s*([^}]+)\s*\}\}/g, (match, expression) => {
-                const keys = expression.trim().split('.');
-                let value = context;
+                const expr = expression.trim();
                 
-                // Navigate nested object properties
-                for (const key of keys) {
-                    if (value && typeof value === 'object' && key in value) {
-                        value = value[key];
-                    } else {
-                        return match; // Keep original if property not found
+                // Check for helper function calls (e.g., "renderText id", "formatCurrency price")
+                const functionMatch = expr.match(/^(\w+)\s+(.+)$/);
+                if (functionMatch) {
+                    const [, functionName, argExpr] = functionMatch;
+                    
+                    // Check if it's a known helper function
+                    if (typeof this[functionName] === 'function') {
+                        // Get the argument value from context
+                        const argValue = this.getValueFromContext(context, argExpr);
+                        
+                        // Call the helper function
+                        try {
+                            return this[functionName](argValue);
+                        } catch (error) {
+                            console.warn(`Error calling ${functionName}:`, error);
+                            return this.escapeHtml(String(argValue || ''));
+                        }
                     }
                 }
                 
-                // Return escaped HTML for security
+                // Handle simple property access (e.g., "value", "row.name")
+                const value = this.getValueFromContext(context, expr);
                 return value !== null && value !== undefined ? this.escapeHtml(String(value)) : '';
             });
         } catch (error) {
@@ -53,6 +64,28 @@ class TemplateExtension extends BaseExtension {
             // Fallback to default rendering on error
             return context.value ? this.escapeHtml(String(context.value)) : '';
         }
+    }
+
+    /**
+     * Get value from context using dot notation
+     * @param {Object} context - Template context
+     * @param {string} path - Property path (e.g., "value", "row.name")
+     * @returns {*} Value from context
+     */
+    getValueFromContext(context, path) {
+        const keys = path.split('.');
+        let value = context;
+        
+        // Navigate nested object properties
+        for (const key of keys) {
+            if (value && typeof value === 'object' && key in value) {
+                value = value[key];
+            } else {
+                return undefined;
+            }
+        }
+        
+        return value;
     }
 
     /**
@@ -156,8 +189,11 @@ class TemplateExtension extends BaseExtension {
             row,
             column,
             isGridImage,
+            // Make row properties available at top level for easy template access
+            ...row,
             // Helper functions available in templates
             helpers: {
+                renderText: this.renderText,
                 formatDate: this.formatDate,
                 formatNumber: this.formatNumber,
                 formatCurrency: this.formatCurrency,
@@ -188,6 +224,7 @@ class TemplateExtension extends BaseExtension {
             isGridLabel,
             // Helper functions available in templates
             helpers: {
+                renderText: this.renderText,
                 formatDate: this.formatDate,
                 formatNumber: this.formatNumber,
                 formatCurrency: this.formatCurrency,
@@ -252,6 +289,16 @@ class TemplateExtension extends BaseExtension {
     }
 
     // Template helper functions
+
+    /**
+     * Render text helper - safely renders text content
+     * @param {*} value - Value to render as text
+     * @returns {string} Escaped HTML text
+     */
+    renderText(value) {
+        if (value === null || value === undefined) return '';
+        return this.escapeHtml(String(value));
+    }
 
     /**
      * Format date helper

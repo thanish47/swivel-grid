@@ -33,11 +33,15 @@ class PaginationExtension extends BaseExtension {
         
         // Add pagination API to grid instance
         this._addPaginationAPI();
+        
+        // Add pagination styles
+        this.addPaginationStyles();
     }
 
     onDestroy() {
         this._unbindScrollListeners();
         this._removeIntersectionObserver();
+        this.removePaginationStyles();
     }
 
     onAfterRender(context) {
@@ -499,6 +503,73 @@ class PaginationExtension extends BaseExtension {
         this._loading = false;
         this._endReached = false;
         this._lastTriggeredPage = 0;
+    }
+
+    /**
+     * Add CSS styles for pagination UI elements
+     */
+    addPaginationStyles() {
+        const css = `
+            /* Load more section styles */
+            .load-more-section {
+                padding: 20px;
+                text-align: center;
+                border-top: 1px solid var(--border-color);
+                background: #f8f9fa;
+            }
+
+            .load-more-button {
+                padding: 12px 24px;
+                background: var(--primary-color, #007bff);
+                color: white;
+                border: none;
+                border-radius: 6px;
+                cursor: pointer;
+                font-size: 14px;
+                font-weight: 500;
+                transition: background-color 0.2s;
+            }
+
+            .load-more-button:hover {
+                background: var(--primary-color-hover, #0056a3);
+            }
+
+            .load-more-button:disabled {
+                background: #6c757d;
+                cursor: not-allowed;
+            }
+
+            .spinner {
+                display: inline-block;
+                width: 20px;
+                height: 20px;
+                border: 2px solid #f3f3f3;
+                border-top: 2px solid var(--primary-color, #007bff);
+                border-radius: 50%;
+                animation: spin 1s linear infinite;
+                margin-right: 8px;
+            }
+
+            @keyframes spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+            }
+        `;
+
+        const grid = this.getGrid();
+        if (grid && grid.addExtensionStyles) {
+            grid.addExtensionStyles(css, 'pagination');
+        }
+    }
+
+    /**
+     * Remove pagination styles from the grid
+     */
+    removePaginationStyles() {
+        const grid = this.getGrid();
+        if (grid && grid.removeExtensionStyles) {
+            grid.removeExtensionStyles('pagination');
+        }
     }
 }
 

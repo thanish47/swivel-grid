@@ -37,17 +37,18 @@ class SortingExtension extends BaseExtension {
     }
 
     /**
-     * Attach sort event listeners to table headers
+     * Attach sort event listeners to table headers (supports both sticky and regular headers)
      */
     attachSortListeners() {
         const grid = this.getGrid();
         const shadowRoot = grid?.shadowRoot;
         if (!shadowRoot) return;
 
+        // Look for headers in both sticky and regular table structures
         const headers = shadowRoot.querySelectorAll('th[data-key]');
         headers.forEach(header => {
             const key = header.dataset.key;
-            const gridState = grid.getGridState();
+            const gridState = this.getGridState();
             const col = gridState.schema.find(c => c.key === key);
             if (col?.sortable === false) return;
             
@@ -78,7 +79,7 @@ class SortingExtension extends BaseExtension {
      */
     handleSort(key) {
         const grid = this.getGrid();
-        const gridState = grid.getGridState();
+        const gridState = this.getGridState();
         const column = gridState.schema.find(col => col.key === key);
         if (!column) return;
 
@@ -151,7 +152,7 @@ class SortingExtension extends BaseExtension {
      */
     defaultSort(a, b, key) {
         const grid = this.getGrid();
-        const gridState = grid.getGridState();
+        const gridState = this.getGridState();
         const column = gridState.schema.find(col => col.key === key);
         const type = column?.type || 'text';
 
@@ -200,7 +201,7 @@ class SortingExtension extends BaseExtension {
      */
     getActiveSort() {
         const grid = this.getGrid();
-        const gridState = grid.getGridState();
+        const gridState = this.getGridState();
         return gridState.schema.find(col => col.sort) || null;
     }
 
@@ -212,7 +213,7 @@ class SortingExtension extends BaseExtension {
      */
     setSortColumn(key, direction, render = true) {
         const grid = this.getGrid();
-        const gridState = grid.getGridState();
+        const gridState = this.getGridState();
         const column = gridState.schema.find(col => col.key === key);
         if (!column) return false;
 
@@ -256,7 +257,7 @@ class SortingExtension extends BaseExtension {
      */
     isSortingAvailable() {
         const grid = this.getGrid();
-        const gridState = grid.getGridState();
+        const gridState = this.getGridState();
         
         // Check if any columns are sortable
         return gridState.schema.some(col => col.sortable !== false);
@@ -267,10 +268,11 @@ class SortingExtension extends BaseExtension {
      */
     addSortingStyles() {
         const css = `
-            /* Sorting indicators */
+            /* Sorting indicators - compatible with sticky headers */
             th.sortable {
                 cursor: pointer;
                 user-select: none;
+                position: relative;
             }
 
             th.sortable:hover {
@@ -279,26 +281,44 @@ class SortingExtension extends BaseExtension {
 
             th.sortable::after {
                 content: '↕';
-                margin-left: 4px;
+                margin-left: 6px;
                 opacity: 0.5;
                 font-size: 12px;
+                position: relative;
+                top: -1px;
             }
 
             th.sort-asc::after {
                 content: '↑';
                 opacity: 1;
                 color: var(--sort-indicator-color, #0969da);
+                font-weight: bold;
             }
 
             th.sort-desc::after {
                 content: '↓';
                 opacity: 1;
                 color: var(--sort-indicator-color, #0969da);
+                font-weight: bold;
             }
 
             th.sortable:focus {
                 outline: 2px solid var(--focus-color, #0969da);
                 outline-offset: -2px;
+            }
+
+            /* Enhanced styling for sticky headers */
+            .sticky-table-header th.sortable:hover,
+            .virtualized-table-header th.sortable:hover {
+                background-color: rgba(0, 0, 0, 0.08);
+                transition: background-color 0.15s ease;
+            }
+
+            /* Ensure sort indicators are visible in sticky headers */
+            .sticky-table-header th.sortable::after,
+            .virtualized-table-header th.sortable::after {
+                z-index: 1;
+                position: relative;
             }
 
             /* Accessibility improvements */
@@ -309,6 +329,20 @@ class SortingExtension extends BaseExtension {
 
             th[aria-disabled="true"]:hover {
                 background-color: transparent;
+            }
+
+            /* Better visual feedback for active sort */
+            th.sort-asc,
+            th.sort-desc {
+                background-color: rgba(9, 105, 218, 0.05);
+                font-weight: 600;
+            }
+
+            .sticky-table-header th.sort-asc,
+            .sticky-table-header th.sort-desc,
+            .virtualized-table-header th.sort-asc,
+            .virtualized-table-header th.sort-desc {
+                background-color: rgba(9, 105, 218, 0.08);
             }
         `;
 
