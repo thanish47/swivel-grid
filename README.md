@@ -10,6 +10,11 @@ Swivel Grid is a native web component built using the Web Components standard, m
 You can see **SwivelGrid** in action here:  
 👉 <a href="http://thanish.com/demo/swivel-grid/" target="_blank" rel="noopener noreferrer">Live Demo</a>
 
+## Credits
+- The Core library was developed by Tanish Alaparthi.
+- Later revisions and enhancements are developed using AI Peer Programming with Claude Code. 
+- This ReadMe.md file is re-written with the help of ChatGPT.
+
 ## Key Features
 
 ### 🎯 **Dual Layout Support**
