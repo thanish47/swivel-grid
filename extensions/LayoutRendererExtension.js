@@ -12,6 +12,11 @@ class LayoutRendererExtension extends BaseExtension {
     onInitialize(gridInstance) {
         // Store reference to grid for accessing internal methods
         this.grid = gridInstance;
+        this.addStickyHeaderStyles();
+    }
+
+    onDestroy() {
+        this.removeStickyHeaderStyles();
     }
 
     onBeforeRender(context) {
@@ -53,37 +58,73 @@ class LayoutRendererExtension extends BaseExtension {
     }
 
     /**
-     * Render table layout
+     * Render table layout with sticky header by default
      * @param {Object} context - Rendering context
-     * @returns {string} Table HTML
+     * @returns {string} Table HTML with sticky header structure
      */
     renderTable(context) {
         const { schema, rows } = context;
         
         return `
-            <div class="table-container">
-                <table>
+            <div class="sticky-table-wrapper">
+                ${this.renderStickyHeader(schema)}
+                <div class="sticky-table-container">
+                    ${this.renderTableBody(rows, schema)}
+                </div>
+            </div>
+        `;
+    }
+
+    /**
+     * Render sticky header for table
+     * @param {Array} schema - Column schema
+     * @returns {string} Header HTML
+     */
+    renderStickyHeader(schema) {
+        return `
+            <div class="sticky-table-header">
+                <table class="swivel-table sticky-header">
                     <thead>
                         <tr>
-                            ${schema.map(col => `
-                                <th class="${this.getSortClass(col)}" 
-                                    data-key="${col.key}"
-                                    style="${this.getColumnStyles(col)}"
-                                    ${this.getHeaderARIA(col)}>
-                                    ${this.renderHeaderContent(col)}
-                                </th>
-                            `).join('')}
+                            ${schema.map(col => this.renderHeaderCell(col)).join('')}
                         </tr>
                     </thead>
-                    <tbody>
-                        ${rows.map(row => `
-                            <tr>
-                                ${this.renderTableRow(row, schema)}
-                            </tr>
-                        `).join('')}
-                    </tbody>
                 </table>
             </div>
+        `;
+    }
+
+    /**
+     * Render table body for sticky header structure
+     * @param {Array} rows - Row data
+     * @param {Array} schema - Column schema
+     * @returns {string} Body HTML
+     */
+    renderTableBody(rows, schema) {
+        return `
+            <table class="swivel-table sticky-body">
+                <tbody>
+                    ${rows.map((row, index) => 
+                        `<tr>${this.renderTableRow(row, schema, index)}</tr>`
+                    ).join('')}
+                </tbody>
+            </table>
+        `;
+    }
+
+    /**
+     * Render header cell with proper attributes
+     * @param {Object} col - Column configuration
+     * @returns {string} Header cell HTML
+     */
+    renderHeaderCell(col) {
+        return `
+            <th class="${this.getSortClass(col)}" 
+                data-key="${col.key}"
+                style="${this.getColumnStyles(col)}"
+                ${this.getHeaderARIA(col)}>
+                ${this.renderHeaderContent(col)}
+            </th>
         `;
     }
 
@@ -91,11 +132,12 @@ class LayoutRendererExtension extends BaseExtension {
      * Render a single table row
      * @param {Object} row - Row data
      * @param {Array} schema - Column schema
+     * @param {number} index - Row index (optional)
      * @returns {string} Table row HTML
      */
-    renderTableRow(row, schema) {
+    renderTableRow(row, schema, index = 0) {
         return schema.map(col => `
-            <td style="${this.getColumnStyles(col)}">
+            <td style="${this.getColumnStyles(col)}" ${col.className ? `class="${col.className}"` : ''}>
                 ${this.renderCellContent(row[col.key], col, false, row)}
             </td>
         `).join('');
@@ -404,6 +446,168 @@ class LayoutRendererExtension extends BaseExtension {
                 fragment.appendChild(card);
             });
             elements.gridContainer.appendChild(fragment);
+        }
+    }
+
+    /**
+     * Add CSS styles for sticky header tables
+     */
+    addStickyHeaderStyles() {
+        const css = `
+            /* Sticky Table Wrapper - Main container */
+            .sticky-table-wrapper {
+                height: 100%;
+                display: flex;
+                flex-direction: column;
+                position: relative;
+                overflow: hidden;
+            }
+
+            /* Sticky Header Container */
+            .sticky-table-header {
+                position: sticky;
+                top: 0;
+                z-index: 20;
+                background: white;
+                border-bottom: 2px solid #d1d9e0;
+                box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+                flex-shrink: 0;
+            }
+
+            /* Scrollable Body Container */
+            .sticky-table-container {
+                flex: 1;
+                overflow: auto;
+                position: relative;
+                will-change: scroll-position;
+                -webkit-overflow-scrolling: touch;
+                scroll-behavior: smooth;
+            }
+
+            /* Header Table Styling */
+            .swivel-table.sticky-header {
+                width: 100%;
+                table-layout: fixed;
+                margin: 0;
+                border-collapse: collapse;
+                background: white;
+            }
+
+            .swivel-table.sticky-header thead th {
+                background: white;
+                position: relative;
+                border-bottom: 2px solid #d1d9e0;
+                padding: 12px 8px;
+                text-align: left;
+                font-weight: 600;
+                color: #24292f;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+
+            /* Body Table Styling */
+            .swivel-table.sticky-body {
+                width: 100%;
+                table-layout: fixed;
+                margin: 0;
+                border-collapse: collapse;
+            }
+
+            .swivel-table.sticky-body tbody td {
+                padding: 8px;
+                border-bottom: 1px solid #d0d7de;
+                vertical-align: top;
+                box-sizing: border-box;
+            }
+
+            .swivel-table.sticky-body tbody tr:hover {
+                background-color: #f6f8fa;
+            }
+
+            /* Ensure column widths match between header and body */
+            .sticky-table-header th,
+            .sticky-table-container td {
+                box-sizing: border-box;
+                min-width: 0; /* Allow columns to shrink */
+            }
+
+            /* Improved scrollbar styling */
+            .sticky-table-container {
+                scrollbar-width: thin;
+                scrollbar-color: #c1c1c1 #f1f1f1;
+            }
+
+            .sticky-table-container::-webkit-scrollbar {
+                width: 12px;
+                height: 12px;
+            }
+
+            .sticky-table-container::-webkit-scrollbar-track {
+                background: #f1f1f1;
+                border-radius: 6px;
+            }
+
+            .sticky-table-container::-webkit-scrollbar-thumb {
+                background: #c1c1c1;
+                border-radius: 6px;
+                border: 2px solid #f1f1f1;
+            }
+
+            .sticky-table-container::-webkit-scrollbar-thumb:hover {
+                background: #a8a8a8;
+            }
+
+            .sticky-table-container::-webkit-scrollbar-corner {
+                background: #f1f1f1;
+            }
+
+            /* Responsive design for smaller screens */
+            @media (max-width: 768px) {
+                .sticky-table-header th {
+                    padding: 8px 4px;
+                    font-size: 14px;
+                }
+                
+                .sticky-table-container td {
+                    padding: 6px 4px;
+                    font-size: 14px;
+                }
+            }
+
+            /* Legacy table-container support for backward compatibility */
+            .table-container {
+                height: 100%;
+                overflow: auto;
+            }
+
+            .table-container table {
+                width: 100%;
+                border-collapse: collapse;
+            }
+
+            .table-container table thead th {
+                position: sticky;
+                top: 0;
+                background: white;
+                border-bottom: 2px solid #d1d9e0;
+                z-index: 10;
+            }
+        `;
+
+        const grid = this.getGrid();
+        if (grid && grid.addExtensionStyles) {
+            grid.addExtensionStyles(css, 'layout-renderer-sticky');
+        }
+    }
+
+    /**
+     * Remove sticky header styles
+     */
+    removeStickyHeaderStyles() {
+        const grid = this.getGrid();
+        if (grid && grid.removeExtensionStyles) {
+            grid.removeExtensionStyles('layout-renderer-sticky');
         }
     }
 }
