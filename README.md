@@ -1,859 +1,180 @@
 # Swivel Grid
 
-A powerful, framework-agnostic web component for displaying data in flexible grid and table layouts with advanced features like sorting, searching, special column types, and accessibility support.
+A framework-agnostic data grid built as a native Web Component (`<swivel-grid>`). It shows the same data as either a card grid or a table, with sorting, external search binding, custom cell templates, and scroll-driven pagination hooks.
 
-## Overview
+**Live demo:** https://swivelgrid.thanish.com/
 
-Swivel Grid is a native web component built using the Web Components standard, making it compatible with vanilla JavaScript, React, Angular, Vue, and any other web framework. It provides a rich data visualization experience with professional styling and enterprise-grade features.
+**Status:** v1, single file, no dependencies, no build step. It renders all loaded rows (no virtualization yet), so it is best suited to a few thousand rows or fewer. See [Known limitations](#known-limitations) and [ROADMAP.md](ROADMAP.md).
 
-## Demo
-You can see **SwivelGrid** in action here:  
-👉 <a href="https://swivelgrid.thanish.com/" target="_blank" rel="noopener noreferrer">Live Demo</a>
+## Features
 
-## Credits
-- The Core library was developed by Tanish Alaparthi.
-- Later revisions and enhancements are developed using AI Peer Programming with Claude Code. 
-- This ReadMe.md file is re-written with the help of ChatGPT.
+- **Two layouts, switchable at runtime:** card grid or table (`layout-type="grid" | "table"`; `"list"` is an alias for `"table"`).
+- **Sorting:** click a header, or press Enter or Space on it, to toggle ASC/DESC. One column is sorted at a time. Custom comparators are supported per column.
+- **Column types:** text (default, HTML-escaped), `rating` and `image`.
+- **Templates:** `headerTemplate` and `cellTemplate` with `{{ value }}`-style interpolation. Interpolated values are HTML-escaped.
+- **External search input:** point `search-input` at any input by CSS selector. The grid emits events and calls your handler; it does not filter rows itself.
+- **Pagination hooks:** page-change events, an 80% scroll threshold, and a `loadMoreCallback` for server-driven loading.
+- **Accessibility basics:** `aria-sort` on headers, keyboard-operable sorting, screen-reader text for ratings, list roles in grid layout.
+- **Shadow DOM:** styles are encapsulated. Theme it with CSS custom properties.
 
-## Key Features
+## Quick start
 
-### 🎯 **Dual Layout Support**
-- **Grid Layout**: Card-based responsive layout perfect for product catalogs and media galleries
-- **Table Layout**: Traditional semantic table with sortable headers and sticky columns
-- **Runtime Switching**: Toggle between layouts dynamically without data loss
-
-### 🔧 **Advanced Column Types**
-- **Text**: Standard text display with HTML escaping for security
-- **Rating**: Smart rating display supporting multiple formats:
-  - String format: `"4/5"`
-  - Numeric: `4` (assumes /5)
-  - Object: `{ value: 4, max: 5 }`
-- **Image**: Responsive images with fallback placeholders:
-  - URL string: `"https://example.com/image.jpg"`
-  - Object: `{ src: "url", alt: "description" }`
-- **Custom Templates**: Optional HTML templates for headers and cells:
-  - Full access to row and column data
-  - Automatic XSS protection
-  - Fallback to default rendering
-
-### 🔍 **Search & Filtering**
-- **External Input Binding**: Automatically wire to any input element via CSS selector
-- **Event-Driven**: Emit `swivel:search` events for server-side filtering
-- **Client-Side Support**: Built-in filtering capabilities for local data
-
-### 📊 **Interactive Sorting**
-- **Click-to-Sort**: Click column headers to toggle ASC/DESC sorting
-- **Visual Indicators**: Clear sort direction arrows in table headers
-- **Custom Comparators**: Define per-column sort logic
-- **Multi-Format Support**: Intelligent sorting for ratings, images, text, and numbers
-
-### 🎨 **Responsive Design**
-- **Mobile-First**: Adapts seamlessly to different screen sizes
-- **Column Constraints**: Respect `minWidth` and `maxWidth` in table mode
-- **Touch-Friendly**: Optimized for touch interactions
-
-### ♿ **Accessibility First**
-- **Semantic HTML**: Uses proper `<table>`, `<section>`, and ARIA roles
-- **Screen Reader Support**: Hidden text labels and comprehensive ARIA attributes
-- **Keyboard Navigation**: Full keyboard support for sorting and interaction
-- **WCAG Compliant**: Meets web accessibility standards
-
-### ⚡ **Performance Optimized**
-- **Shadow DOM**: Style encapsulation and performance isolation
-- **Efficient Updates**: Smart DOM diffing and batch updates
-- **Virtual Scrolling Ready**: Built-in scroll detection for pagination
-- **Memory Safe**: Proper cleanup and no memory leaks
-
-## Installation & Usage
-
-### Basic HTML Setup
+Copy `SwivelGrid.js` into your project (it is not published to npm yet).
 
 ```html
-<!DOCTYPE html>
-<html>
-<head>
-    <title>My App</title>
-</head>
-<body>
-    <!-- Search input (optional) -->
-    <input id="search" placeholder="Search..." />
-    
-    <!-- Component with inline attributes -->
-    <swivel-grid
-        layout-type="grid"
-        search-input="#search"
-        schema='[
-            {"label": "Image", "key": "image", "type": "image"},
-            {"label": "Name", "key": "name"},
-            {"label": "Rating", "key": "rating", "type": "rating", "sort": "DESC"}
-        ]'
-        rows='[
-            {"image": "https://example.com/product.jpg", "name": "Product A", "rating": "4/5"},
-            {"image": "https://example.com/product2.jpg", "name": "Product B", "rating": 5}
-        ]'>
-    </swivel-grid>
+<swivel-grid id="products"></swivel-grid>
+<script type="module" src="./SwivelGrid.js"></script>
+<script type="module">
+  const grid = document.querySelector('#products');
 
-    <script type="module" src="path/to/SwivelGrid.js"></script>
-</body>
-</html>
-```
+  grid.schema = [
+    { label: 'Image',  key: 'image',  type: 'image', minWidth: '120px' },
+    { label: 'Name',   key: 'name' },
+    { label: 'Price',  key: 'price' },
+    { label: 'Rating', key: 'rating', type: 'rating', sort: 'DESC' }
+  ];
 
-### JavaScript API
+  grid.rows = [
+    { image: 'https://example.com/a.jpg', name: 'Headphones', price: '$199.99', rating: '4/5' },
+    { image: { src: 'https://example.com/b.jpg', alt: 'Shoes' }, name: 'Shoes', price: '$129.99', rating: { value: 5, max: 5 } }
+  ];
 
-```javascript
-const grid = document.querySelector('swivel-grid');
-
-// Set data via properties (recommended)
-grid.schema = [
-    { label: "Product", key: "name", minWidth: "200px" },
-    { label: "Price", key: "price" },
-    { label: "Rating", key: "rating", type: "rating" }
-];
-
-grid.rows = [
-    { name: "Widget A", price: "$19.99", rating: "4/5" },
-    { name: "Widget B", price: "$24.99", rating: { value: 5, max: 5 } }
-];
-
-// Event handlers
-grid.sortHandler = ({ key, direction }) => {
-    console.log(`Sorted by ${key} ${direction}`);
-    // Fetch sorted data from server
-};
-
-grid.searchHandler = (query) => {
-    console.log(`Search: ${query}`);
-    // Filter data or fetch from server
-};
-
-grid.scrollDownHandler = ({ lastVisibleIndex }) => {
-    console.log(`Load more data after index ${lastVisibleIndex}`);
-    // Implement infinite scroll
-};
-
-// Public methods
-grid.setData(newRows);           // Replace all data
-grid.appendData(moreRows);       // Add data efficiently
-grid.layoutType = 'table';       // Switch layouts
-```
-
-### Framework Integration
-
-#### React
-```jsx
-import { useRef, useEffect } from 'react';
-import './SwivelGrid.js'; // Import the web component
-
-function ProductGrid({ products }) {
-    const gridRef = useRef();
-    
-    useEffect(() => {
-        if (gridRef.current) {
-            gridRef.current.rows = products;
-            gridRef.current.sortHandler = ({ key, direction }) => {
-                // Handle sort
-            };
-        }
-    }, [products]);
-    
-    return (
-        <swivel-grid
-            ref={gridRef}
-            layout-type="grid"
-            schema={JSON.stringify(schema)}
-        />
-    );
-}
-```
-
-#### Vue
-```vue
-<template>
-    <swivel-grid
-        ref="grid"
-        layout-type="grid"
-        :schema="JSON.stringify(schema)"
-        @swivel:sort="handleSort"
-        @swivel:search="handleSearch"
-    />
-</template>
-
-<script>
-import './SwivelGrid.js';
-
-export default {
-    mounted() {
-        this.$refs.grid.rows = this.products;
-    }
-};
+  grid.layoutType = 'table';
 </script>
 ```
 
-#### Angular
-```typescript
-// app.module.ts
-import { CUSTOM_ELEMENTS_SCHEMA } from '@angular/core';
+Run the demo locally (needs Python 3):
 
-@NgModule({
-    schemas: [CUSTOM_ELEMENTS_SCHEMA]
-})
-
-// component.ts
-import './SwivelGrid.js';
-
-@Component({
-    template: `
-        <swivel-grid
-            #grid
-            layout-type="grid"
-            [attr.schema]="schemaJson"
-            (swivel:sort)="onSort($event)"
-        ></swivel-grid>
-    `
-})
-export class ProductGridComponent {
-    @ViewChild('grid') grid!: ElementRef;
-    
-    ngAfterViewInit() {
-        this.grid.nativeElement.rows = this.products;
-    }
-}
+```bash
+npm start        # serves http://localhost:4400/demo.html
 ```
 
-## Data Contracts
-
-### Column Definition (Schema)
-```typescript
-interface ColumnDef {
-    label: string;           // Display name
-    key: string;            // Data property key
-    type?: 'text' | 'rating' | 'image';
-    sort?: 'ASC' | 'DESC';  // Initial sort direction
-    sortable?: boolean;     // Whether column is sortable (default: true)
-    minWidth?: string;      // CSS width (e.g., "120px")
-    maxWidth?: string;      // CSS width (e.g., "300px")
-    sortComparator?: (a: any, b: any, rowA: Row, rowB: Row) => number;
-    headerTemplate?: string; // Optional custom header HTML template
-    cellTemplate?: string;   // Optional custom cell HTML template
-    headerClass?: string;    // Optional CSS classes for header (default rendering only)
-    cellClass?: string;      // Optional CSS classes for cell (default rendering only)
-}
-
-interface SwivelGridElement extends HTMLElement {
-    // Existing properties
-    schema: ColumnDef[];
-    rows: Row[];
-    layoutType: 'grid' | 'table';
-    searchInput: string;
-    
-    // Event handlers
-    sortHandler?: (args: { key: string; direction: 'ASC'|'DESC' }) => void;
-    searchHandler?: (query: string) => void;
-    
-    // Infinite scroll properties
-    pageSize: number;        // Items per page (default: 100)
-    totalPages?: number;     // Total pages available (optional)
-    loading: boolean;        // Show loading spinner (default: false)
-    pageUpHandler?: (pageNumber: number) => void;
-    pageDownHandler?: (pageNumber: number) => void;
-    loadMoreCallback?: () => void;
-    
-    // Methods
-    setData(rows: Row[]): void;
-    appendData(rows: Row[]): void;
-    setPageData(data: Row[], pageNumber?: number): void;
-    destroy(): void;
-}
-```
-
-### Row Data
-```typescript
-type Row = Record<string, any>;
-
-// Examples:
-const sampleRows = [
-    {
-        id: 1,
-        name: "Product Name",
-        price: "$29.99",
-        rating: "4/5",                    // String format
-        image: "https://example.com/img.jpg"
-    },
-    {
-        id: 2,
-        name: "Another Product", 
-        price: "$39.99",
-        rating: { value: 5, max: 5 },    // Object format
-        image: { src: "https://example.com/img2.jpg", alt: "Product image" }
-    }
-];
-```
-
-## Attributes vs Properties
-
-### Attributes (HTML)
-Use for initial setup and serializable values:
-```html
-<swivel-grid
-    layout-type="grid"
-    schema='[{"label":"Name","key":"name"}]'
-    rows='[{"name":"Product A"}]'
-    search-input="#search">
-</swivel-grid>
-```
-
-### Properties (JavaScript)
-**Properties take precedence** over attributes:
-```javascript
-// These will override any HTML attributes
-grid.layoutType = 'table';
-grid.schema = [{ label: "Name", key: "name" }];
-grid.rows = [{ name: "Product A" }];
-grid.searchInput = '#my-search';
-```
-
-## Custom Templates
-
-Swivel Grid supports optional HTML templates for both headers and data cells, providing unlimited customization while maintaining security and performance.
-
-### Template Features
-- **Optional**: Templates are completely optional - without them, columns use default rendering
-- **Secure**: Automatic sanitization prevents XSS attacks 
-- **Context-Aware**: Access to column, row, and value data
-- **Fallback Safe**: Errors fallback to default rendering
-
-### Template Syntax
-
-Templates use simple `{{expression}}` interpolation:
-
-```javascript
-const schema = [
-    {
-        label: "Product Name",
-        key: "name",
-        // Custom header with icon
-        headerTemplate: '<span style="color: #007acc;">📦 {{label}}</span>',
-        // Custom cell with styling
-        cellTemplate: '<strong style="color: #24292f;">{{value}}</strong>'
-    },
-    {
-        label: "Price", 
-        key: "price",
-        // Access nested row data
-        cellTemplate: `
-            <div style="display: flex; align-items: center; gap: 8px;">
-                <span style="color: #28a745; font-weight: 600;">{{value}}</span>
-                {{#if row.discount}}
-                    <small style="color: #dc3545;">{{row.discount}}% off</small>
-                {{/if}}
-            </div>
-        `
-    }
-];
-```
-
-### Template Context
-
-Templates have access to a rich context object:
-
-#### Header Template Context
-```javascript
-{
-    column: ColumnDef,     // Full column definition
-    label: string,         // Column label
-    isGridLabel: boolean   // True when rendering in grid cards
-}
-```
-
-#### Cell Template Context  
-```javascript
-{
-    value: any,           // Cell value for this column
-    row: Row,             // Complete row data object
-    column: ColumnDef,    // Full column definition  
-    isGridImage: boolean  // True when rendering grid image
-}
-```
-
-### Template Examples
-
-#### Basic Styling
-```javascript
-{
-    label: "Status",
-    key: "status", 
-    cellTemplate: `
-        <span class="status status-{{value}}" 
-              style="padding: 4px 8px; border-radius: 4px; font-size: 0.9em;">
-            {{value}}
-        </span>
-    `
-}
-```
-
-#### Complex Layout
-```javascript
-{
-    label: "User Info",
-    key: "user",
-    cellTemplate: `
-        <div style="display: flex; align-items: center; gap: 12px;">
-            <img src="{{row.avatar}}" alt="{{value}}" 
-                 style="width: 32px; height: 32px; border-radius: 50%;" />
-            <div>
-                <div style="font-weight: 600;">{{value}}</div>
-                <div style="font-size: 0.85em; color: #666;">{{row.email}}</div>
-            </div>
-        </div>
-    `
-}
-```
-
-#### Conditional Content
-```javascript
-{
-    label: "Actions",
-    key: "id",
-    headerTemplate: '<span style="text-align: center;">⚙️ Actions</span>',
-    cellTemplate: `
-        <div style="display: flex; gap: 4px;">
-            <button onclick="edit({{value}})" style="padding: 4px 8px; font-size: 0.8em;">
-                Edit
-            </button>
-            <button onclick="delete({{value}})" style="padding: 4px 8px; font-size: 0.8em; color: #dc3545;">
-                Delete  
-            </button>
-        </div>
-    `
-}
-```
-
-#### Progress Bars
-```javascript
-{
-    label: "Progress",
-    key: "completion",
-    cellTemplate: `
-        <div style="display: flex; align-items: center; gap: 8px;">
-            <div style="flex: 1; height: 8px; background: #f1f3f4; border-radius: 4px;">
-                <div style="width: {{value}}%; height: 100%; background: #007acc; border-radius: 4px;"></div>
-            </div>
-            <span style="font-size: 0.85em; color: #666;">{{value}}%</span>
-        </div>
-    `
-}
-```
-
-### Template Security
-
-Templates are automatically sanitized to prevent XSS attacks:
-
-- **Blocked**: `<script>`, `javascript:`, event handlers (`onclick`, etc.)
-- **Allowed**: HTML structure, styling, data interpolation
-- **Safe Fallback**: Malformed templates fallback to default rendering
-
-### Performance Notes
-
-- Templates are processed once during schema setup
-- Rendering is optimized with template caching
-- Large datasets perform well with simple templates
-- Complex templates may impact performance with 1000+ rows
-
-## CSS Classes
-
-Swivel Grid supports optional CSS classes for default header and cell rendering. Classes are ignored when custom templates are used, providing a lighter-weight styling option.
-
-### Class Properties
-
-```javascript
-{
-    label: "Product Name",
-    key: "name",
-    headerClass: "header-primary text-bold",     // Multiple classes supported
-    cellClass: "cell-highlight important"        // Applied to default content only
-}
-```
-
-### Custom CSS Classes
-
-The component doesn't include any built-in styling for classes - you define your own CSS. Here are some example classes you might implement:
-
-#### Example Header Classes
-```css
-.header-primary {
-    color: #007acc;
-    font-weight: 700;
-    text-transform: uppercase;
-    font-size: 0.9em;
-    letter-spacing: 0.5px;
-}
-
-.header-secondary {
-    color: #6c757d;
-    font-style: italic;
-    font-size: 0.95em;
-}
-```
-
-#### Example Cell Classes
-```css
-.cell-highlight {
-    background: linear-gradient(90deg, #fff3cd 0%, transparent 100%);
-    padding: 4px 8px;
-    border-radius: 4px;
-    font-weight: 600;
-}
-
-.cell-success { color: #28a745; font-weight: 600; }
-.cell-warning { color: #ffc107; font-weight: 600; }
-.cell-danger { color: #dc3545; font-weight: 600; }
-.cell-muted { color: #6c757d; font-style: italic; }
-
-.cell-badge {
-    display: inline-block;
-    padding: 2px 8px;
-    border-radius: 12px;
-    font-size: 0.85em;
-    font-weight: 500;
-    background: #e9ecef;
-    color: #495057;
-}
-```
-
-### Usage Examples
-
-#### Basic Class Application
-```javascript
-const schema = [
-    {
-        label: "Status",
-        key: "status",
-        headerClass: "header-primary",
-        cellClass: "cell-badge"
-    },
-    {
-        label: "Revenue",
-        key: "revenue", 
-        headerClass: "header-secondary",
-        cellClass: "cell-success"
-    }
-];
-```
-
-#### Advanced Custom Classes
-```css
-/* Define your own advanced classes */
-.priority-header {
-    background: linear-gradient(45deg, #007acc, #0056b3);
-    color: white;
-    padding: 8px;
-    border-radius: 4px;
-    text-align: center;
-}
-
-.priority-cell {
-    border-left: 4px solid #007acc;
-    padding-left: 8px;
-    font-weight: 500;
-    text-transform: capitalize;
-}
-```
-
-```javascript
-{
-    label: "Priority",
-    key: "priority",
-    headerClass: "priority-header",
-    cellClass: "priority-cell"
-}
-```
-
-**Note**: The demo includes example implementations of these classes. In your own project, define whatever CSS classes suit your design system.
-
-### Classes vs Templates
-
-| Feature | Classes | Templates |
-|---------|---------|-----------|
-| **Complexity** | Simple | Full HTML control |
-| **Performance** | Fast | Slightly slower |
-| **Flexibility** | CSS styling only | Complete customization |
-| **Security** | No XSS risk | Auto-sanitized |
-| **Special Types** | Works with rating/image | Overrides everything |
-
-### Important Notes
-
-- **Template Priority**: If both `cellTemplate` and `cellClass` are provided, only the template is used
-- **Special Types**: Classes apply to text content but not to rating stars or images
-- **Multiple Classes**: Space-separated class names are supported
-- **Inheritance**: Classes work with CSS cascade and inheritance
-- **Performance**: Classes are more performant than templates for simple styling
-
-## Infinite Scrolling
-
-Swivel Grid includes built-in infinite scrolling functionality with page-based data management, load more controls, and performance optimizations.
-
-### Infinite Scroll Properties
-
-```javascript
-const grid = document.querySelector('swivel-grid');
-
-// Configure pagination
-grid.pageSize = 50;              // Items per page (default: 100)
-grid.totalPages = 20;            // Total pages available (optional)
-grid.loading = false;            // Show/hide loading spinner
-
-// Event handlers
-grid.pageUpHandler = (pageNumber) => {
-    console.log(`User scrolled up to page ${pageNumber}`);
-    // Load previous page data if needed
-};
-
-grid.pageDownHandler = (pageNumber) => {
-    console.log(`User scrolled down to page ${pageNumber}`);
-    // Load next page data
-    fetchPage(pageNumber).then(data => {
-        grid.setPageData(data, pageNumber);
-    });
-};
-
-// Load more button callback
-grid.loadMoreCallback = () => {
-    grid.loading = true;
-    fetchNextPage().then(data => {
-        grid.setPageData(data); // Append as new page
-        grid.loading = false;
-    });
-};
-```
-
-### Page Management
-
-The `setPageData()` method provides flexible page-based data management:
-
-```javascript
-// Replace specific page data (1-based page numbers)
-grid.setPageData(pageData, 3); // Replace page 3 with new data
-
-// Append data as new page (no page number)
-grid.setPageData(newData);      // Adds as next page
-
-// Example: Loading page 2
-const page2Data = [
-    { name: "Item 51", price: "$29.99", rating: 4 },
-    { name: "Item 52", price: "$39.99", rating: 5 },
-    // ... 48 more items for pageSize = 50
-];
-grid.setPageData(page2Data, 2);
-```
-
-### Page Boundary Detection
-
-The component triggers page events when users cross page boundaries:
-
-- **80% Threshold**: Page events fire when 80% through current page
-- **1-based Pages**: Page numbers start from 1
-- **Bidirectional**: Handles both upward and downward scrolling
-
-```javascript
-grid.pageDownHandler = (pageNumber) => {
-    // Triggered at 80% through previous page
-    if (!isPageLoaded(pageNumber)) {
-        loadPage(pageNumber);
-    }
-};
-```
-
-### Load More Section
-
-When `totalPages` is set, a load more section appears at the bottom:
-
-#### Loading States
-```javascript
-// Show spinner
-grid.loading = true;
-
-// Show "Load More" button
-grid.loading = false;
-grid.loadMoreCallback = handleLoadMore;
-
-// Hide section (when all pages loaded)
-grid.totalPages = null;
-```
-
-#### Load More Button
-```javascript
-grid.loadMoreCallback = async () => {
-    try {
-        grid.loading = true;
-        const nextPage = await fetchNextPage();
-        grid.setPageData(nextPage);
-    } catch (error) {
-        console.error('Failed to load more:', error);
-    } finally {
-        grid.loading = false;
-    }
-};
-```
-
-### Performance Optimizations
-
-The infinite scroll implementation is optimized for large datasets:
-
-- **Efficient Page Mapping**: Uses linear array with on-demand page calculation
-- **Smart Rendering**: Only re-renders affected sections when possible
-- **Scroll Throttling**: Uses `requestAnimationFrame` for smooth scrolling
-- **Memory Efficient**: Minimal overhead for page tracking
-
-### Integration Patterns
-
-#### Basic Infinite Scroll
-```javascript
-let currentPage = 1;
-
-grid.pageDownHandler = async (pageNumber) => {
-    if (pageNumber > currentPage) {
-        currentPage = pageNumber;
-        const data = await fetchPage(pageNumber);
-        grid.setPageData(data, pageNumber);
-    }
-};
-```
-
-#### Preloading with Cache
-```javascript
-const pageCache = new Map();
-
-grid.pageDownHandler = async (pageNumber) => {
-    if (!pageCache.has(pageNumber)) {
-        grid.loading = true;
-        const data = await fetchPage(pageNumber);
-        pageCache.set(pageNumber, data);
-        grid.setPageData(data, pageNumber);
-        grid.loading = false;
-    }
-};
-```
-
-#### Server-Side Pagination
-```javascript
-async function handlePageChange(pageNumber) {
-    const response = await fetch(`/api/data?page=${pageNumber}&size=${grid.pageSize}`);
-    const { data, totalPages } = await response.json();
-    
-    grid.totalPages = totalPages;
-    grid.setPageData(data, pageNumber);
-}
-
-grid.pageDownHandler = handlePageChange;
-grid.pageUpHandler = handlePageChange;
-```
-
-### Events
-
-Infinite scrolling adds new custom events:
-
-```javascript
-grid.addEventListener('swivel:pageUp', (e) => {
-    const { pageNumber } = e.detail;
-    console.log('Page up event:', pageNumber);
-});
-
-grid.addEventListener('swivel:pageDown', (e) => {
-    const { pageNumber } = e.detail;
-    console.log('Page down event:', pageNumber);
-});
-
-grid.addEventListener('swivel:pageThreshold', (e) => {
-    const { pageNumber, threshold, nextPage } = e.detail;
-    console.log(`80% through page ${pageNumber}, next: ${nextPage}`);
-    // Preload next page
-});
-```
+## Schema (columns)
+
+| Field | Type | Notes |
+|---|---|---|
+| `label` | string | Column title (HTML-escaped). |
+| `key` | string | Property name to read from each row. |
+| `type` | `'rating'` \| `'image'` | Omit for text. |
+| `minWidth`, `maxWidth` | CSS length | Applied to header and cells in table layout. In grid layout, the largest `px` `minWidth` sets the minimum card width. |
+| `sort` | `'ASC'` \| `'DESC'` | Initial sort. Only one column can be sorted; if several are set, the first wins. |
+| `sortable` | boolean | `false` disables header sorting (default `true`). |
+| `sortComparator` | `(a, b, rowA, rowB) => number` | Overrides the default comparison. |
+| `headerTemplate`, `cellTemplate` | string | See [Templates](#templates). |
+| `headerClass`, `cellClass` | string | Class names added to the default rendering only. See limitations. |
+
+**Rating values** can be `"4/5"`, `4` (out of 5), or `{ value: 4, max: 5 }`. Invalid values show `—`.
+**Image values** can be a URL string or `{ src, alt }`. Missing or failed images show a placeholder. In grid layout the image column is shown at the top of the card.
+`null` or `undefined` cell values show `—`.
+
+## Attributes and properties
+
+Attributes take JSON strings; properties take real values. If a property has been set, later attribute changes for it are ignored.
+
+| Attribute | Property | Default |
+|---|---|---|
+| `schema` | `schema` | `[]` |
+| `rows` | `rows` | `[]` |
+| `layout-type` | `layoutType` | `'grid'` |
+| `search-input` | `searchInput` (CSS selector) | `null` |
+
+Additional properties (no attribute form): `sortHandler`, `searchHandler`, `pageUpHandler`, `pageDownHandler`, `pageSize` (default 100), `totalPages`, `loading`, `loadMoreCallback`.
+
+## Methods
+
+| Method | Behavior |
+|---|---|
+| `setData(rows)` | Replace all rows, reset to page 1, re-render. |
+| `appendData(rows)` | Append rows. Re-sorts if a sort is active and `totalPages` is not set; otherwise appends without re-sorting. |
+| `setPageData(data, pageNumber?)` | With `pageNumber`, replace that page's slice (gaps are filled with empty rows). Without it, append as the next page. |
+| `render()` | Force a re-render. |
+| `destroy()` | Remove the search and scroll listeners. Also runs automatically on disconnect. |
 
 ## Events
 
-All events are dispatched with `bubbles: true` and `composed: true`:
+All events bubble and are composed, so they cross the Shadow DOM boundary. Each also has a matching handler property where noted.
 
-```javascript
-grid.addEventListener('swivel:sort', (e) => {
-    const { key, direction } = e.detail;
-    // Handle sort: fetch new data, update UI, etc.
-});
+| Event | `detail` | Handler property |
+|---|---|---|
+| `swivel:sort` | `{ key, direction }` | `sortHandler` |
+| `swivel:search` | `{ query }` | `searchHandler` |
+| `swivel:data` | `{ type: 'set' \| 'append' \| 'page-set' \| 'page-append', length, ... }` | none |
+| `swivel:pageDown` | `{ pageNumber }` | `pageDownHandler` (receives the page number) |
+| `swivel:pageUp` | `{ pageNumber }` | `pageUpHandler` (receives the page number) |
+| `swivel:pageThreshold` | `{ pageNumber, threshold: 0.8, nextPage }` | none |
 
-grid.addEventListener('swivel:search', (e) => {
-    const { query } = e.detail;
-    // Handle search: filter data, call API, etc.
-});
+## Pagination and sorting
 
-grid.addEventListener('swivel:scrollUp', (e) => {
-    const { firstVisibleIndex } = e.detail;
-    // Handle scroll up: load previous page, etc.
-});
+Set `pageSize` and `totalPages` when rows come from a server.
 
-grid.addEventListener('swivel:scrollDown', (e) => {
-    const { lastVisibleIndex } = e.detail;
-    // Handle scroll down: load next page, infinite scroll, etc.
-});
+- When the user has scrolled through 80% of the current page, the grid fires `swivel:pageThreshold` and, if `loadMoreCallback` is set, sets `loading = true` and calls it. Your code should fetch the next page, then call `setPageData(data)` (which clears `loading`).
+- **When `totalPages` is set, the grid does not sort locally.** Clicking a header updates the sort indicator and calls `sortHandler`; you must re-fetch sorted data from your server. This avoids mixing sorted and unsorted pages.
+- Without `totalPages`, sorting happens client-side on the rows you have loaded.
 
-grid.addEventListener('swivel:data', (e) => {
-    const { type, length, added } = e.detail;
-    // Handle data changes: type='set'|'append', length=total rows, added=new rows (append only)
-});
+```js
+grid.pageSize = 50;
+grid.totalPages = 20;
+grid.loadMoreCallback = async () => {
+  const next = Math.ceil(grid.rows.length / grid.pageSize) + 1;
+  grid.setPageData(await fetchPage(next));
+};
+grid.sortHandler = ({ key, direction }) => reloadFromServer(key, direction);
 ```
 
-## Styling & Customization
+## Templates
 
-The component uses CSS custom properties for easy theming:
+Templates replace the default rendering of a header or cell. Use `{{ path }}` to insert a value; dotted paths work.
 
-```css
-swivel-grid {
-    --primary-color: #007acc;      /* Accent color */
-    --border-color: #e1e5e9;       /* Border color */
-    --hover-color: #f8f9fa;        /* Hover background */
-    --text-color: #24292f;         /* Text color */
-    --star-color: #fbbf24;         /* Rating star color */
+```js
+{
+  label: 'Price', key: 'price',
+  headerTemplate: '<b>{{label}}</b>',
+  cellTemplate: '<span style="color:#28a745">{{value}}</span>'
 }
 ```
 
-## Error Handling
+| Template | Available variables |
+|---|---|
+| `cellTemplate` | `value`, `row`, `column`, `isGridImage` (for example `{{row.name}}`) |
+| `headerTemplate` | `column`, `label`, `isGridLabel` |
 
-The component gracefully handles various error conditions:
-- **Invalid JSON**: Logs errors and uses empty arrays
-- **Missing Properties**: Shows "—" placeholder
-- **Image Load Failures**: Shows camera icon placeholder
-- **Invalid Ratings**: Shows "—" with tooltip
-- **Network Issues**: Continues to function with cached data
+**Security model:** interpolated values are always HTML-escaped. The template string itself is treated as **trusted, developer-written HTML**. The grid applies a best-effort filter that strips a few dangerous patterns (such as `<script>`, `javascript:` and inline event handlers), but this is not a sanitizer. Never build templates from user input.
 
-## Browser Support
+## Styling
 
-- **Modern Browsers**: Chrome, Firefox, Safari, Edge (all current versions)
-- **Web Components**: Uses native Custom Elements, Shadow DOM
-- **Polyfills**: Include web components polyfill for older browsers if needed
+Override these CSS custom properties on `swivel-grid`:
 
-## Performance Notes
+```css
+swivel-grid {
+  --primary-color: #007acc;
+  --border-color: #e1e5e9;
+  --hover-color: #f8f9fa;
+  --text-color: #24292f;
+  --star-color: #fbbf24;
+}
+```
 
-- **Efficient Rendering**: Uses document fragments and smart DOM updates
-- **Memory Management**: Proper cleanup prevents memory leaks
-- **Scroll Optimization**: Debounced scroll handling with RAF
-- **Large Datasets**: Built-in scroll detection for virtual scrolling integration
+The scroll area has a fixed `max-height` of 600px (400px under 768px wide).
 
-## Examples
+## Known limitations
 
-See the included `index.html` for a complete working demo showcasing all features.
+- No row virtualization: every loaded row is in the DOM, and scroll tracking measures rows on each animation frame.
+- Each full render replaces the shadow DOM contents, so a re-sort resets scroll position and listeners are re-attached.
+- `headerClass` and `cellClass` add class names inside the Shadow DOM. Page stylesheets cannot reach them, so use templates with inline styles or the CSS custom properties above.
+- Rows are not filtered by the grid: search only emits events and calls your handler.
+- No automated tests or CI yet.
+- Not published to npm.
 
-## Contributing
+## Project files
 
-This is a production-ready component. For modifications:
+| File | Purpose |
+|---|---|
+| `SwivelGrid.js` | The component (about 1,260 lines). |
+| `demo.html`, `data.js` | Demo page and sample data. |
+| `ROADMAP.md` | Planned modularization (not implemented). |
 
-1. Maintain backward compatibility
-2. Follow the existing code patterns
-3. Add tests for new features
-4. Update this README for any API changes
+## Credits and license
 
-## License
+Designed and written by Tanish Alaparthi. Later revisions were pair-programmed with Claude Code, and this README was drafted with AI assistance and checked against the source.
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
----
-
-**Swivel Grid** - Built for modern web applications that need powerful, accessible, and performant data visualization.
+MIT License. See [LICENSE](LICENSE).
