@@ -2,18 +2,21 @@
   "name": "swivel-grid",
   "version": "1.0.0",
   "description": "A web component library for swivel grid functionality",
-  "main": "index.html",
+  "type": "module",
+  "main": "SwivelGrid.js",
   "scripts": {
     "start": "python -m http.server 4400",
-    "serve": "python3 -m http.server 4400"
+    "serve": "python3 -m http.server 4400",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
-  "keywords": [
-    "web-components",
-    "grid",
-    "swivel",
-    "html",
-    "javascript"
-  ],
+  "keywords": ["web-components", "grid", "swivel", "html", "javascript"],
   "author": "",
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "@vitest/coverage-v8": "^2.1.8",
+    "jsdom": "^25.0.1",
+    "vitest": "^2.1.8"
+  }
 }
