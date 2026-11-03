@@ -210,6 +210,124 @@ The bundle system is fully backward compatible:
 - Can mix bundle loading with manual extension addition
 - All events and methods work as before
 
+## BundleBuilder — Custom Composition
+
+`BundleBuilder` is a chainable API for composing a custom extension set programmatically, with automatic dependency resolution and size estimation.
+
+### Basic usage
+
+```javascript
+import BundleBuilder from './bundles/BundleBuilder.js';
+
+const extensions = new BundleBuilder()
+    .addFeature('sorting')
+    .addFeature('pagination')
+    .build();  // automatically adds layout-renderer (required dep)
+
+extensions.forEach(ext => grid.registerExtension(ext));
+```
+
+### Available features
+
+| Name | Extension class | Requires |
+|---|---|---|
+| `layout-renderer` | LayoutRendererExtension | — |
+| `templates` | TemplateExtension | — |
+| `sorting` | SortingExtension | layout-renderer |
+| `search` | SearchExtension | layout-renderer |
+| `pagination` | PaginationExtension | layout-renderer |
+| `css-classes` | CssClassesExtension | layout-renderer |
+| `accessibility` | AccessibilityExtension | layout-renderer |
+
+### Loading from a named preset
+
+```javascript
+const extensions = BundleBuilder.fromPreset('enterprise').build();
+extensions.forEach(ext => grid.registerExtension(ext));
+```
+
+Available presets: `table-focused`, `designer`, `data-heavy`, `minimal-interactive`, `dashboard`, `enterprise`.
+
+### Serialization (save and restore a configuration)
+
+```javascript
+// Save
+const config = new BundleBuilder()
+    .addFeature('sorting')
+    .addFeature('search')
+    .toConfig();
+localStorage.setItem('grid-config', JSON.stringify(config));
+
+// Restore
+const saved = JSON.parse(localStorage.getItem('grid-config'));
+const extensions = BundleBuilder.fromConfig(saved).build();
+extensions.forEach(ext => grid.registerExtension(ext));
+```
+
+Alternatively, use `BundleLoader.loadFromConfig(grid, config)` to restore and register in one call.
+
+### Validation and size estimation
+
+```javascript
+const builder = new BundleBuilder()
+    .addFeature('sorting')
+    .addFeature('search');
+
+const { valid, errors } = builder.validate();
+const { kb, breakdown } = builder.estimateSize();
+console.log(`~${kb}KB`, breakdown);
+```
+
+---
+
+## ExtensionLoader — Setup Methods
+
+`ExtensionLoader` provides preset setup methods as an alternative to bundle loading. It also supports lazy loading via dynamic `import()`.
+
+```javascript
+import ExtensionLoader from './extensions/ExtensionLoader.js';
+const loader = new ExtensionLoader();
+```
+
+### Preset setup methods
+
+```javascript
+// Load layout-renderer only
+loader.loadMinimalSetup(grid);
+
+// Load layout-renderer + templates + sorting
+loader.loadStandardSetup(grid);
+
+// Load all 7 extensions
+loader.loadAdvancedSetup(grid);
+```
+
+All three methods return an array of the extension names that were loaded.
+
+### Custom bundle
+
+```javascript
+// Load a custom feature list with automatic dependency resolution
+const result = loader.loadCustomBundle(grid, ['sorting', 'search', 'pagination']);
+// result: { loaded: [...], skipped: [...], errors: [...] }
+```
+
+### Load from serialized config
+
+```javascript
+const config = new BundleBuilder().addFeature('sorting').toConfig();
+const result = loader.createCustomSetup(grid, config);
+```
+
+### Lazy loading
+
+```javascript
+// Extension module is not fetched until this call
+const ok = await loader.lazyLoad(grid, './extensions/ExportExtension.js');
+```
+
+---
+
 ## File Structure
 
 ```
@@ -217,7 +335,8 @@ bundles/
 ├── index.js              # Main bundle exports and utilities
 ├── StandardBundle.js     # Standard bundle implementation
 ├── AdvancedBundle.js     # Advanced bundle implementation
-└── BundleLoader.js       # Bundle loading utilities
+├── BundleLoader.js       # Bundle loading utilities
+└── BundleBuilder.js      # Chainable programmatic bundle composition
 ```
 
 ## HTML Loading
