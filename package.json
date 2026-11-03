@@ -1,9 +1,28 @@
 {
   "name": "swivel-grid",
   "version": "1.0.0",
-  "description": "A web component library for swivel grid functionality",
+  "description": "A framework-agnostic data grid Web Component with a hook-based extension system, bundle loader, and row virtualization.",
   "type": "module",
   "main": "SwivelGrid.js",
+  "exports": {
+    ".": "./SwivelGrid.js",
+    "./extensions/*": "./extensions/*.js",
+    "./bundles/*": "./bundles/*.js"
+  },
+  "files": [
+    "SwivelGrid.js",
+    "extensions/",
+    "bundles/",
+    "README.md",
+    "CHANGELOG.md",
+    "API_REFERENCE.md",
+    "ARCHITECTURE.md",
+    "BUNDLE_SYSTEM_GUIDE.md",
+    "PERFORMANCE_GUIDE.md",
+    "VIRTUALIZATION_GUIDE.md",
+    "COLUMN_TYPES_TO_TEMPLATES_MIGRATION.md",
+    "LICENSE"
+  ],
   "scripts": {
     "start": "python -m http.server 4400",
     "serve": "python3 -m http.server 4400",
@@ -11,9 +30,14 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"
   },
-  "keywords": ["web-components", "grid", "swivel", "html", "javascript"],
-  "author": "",
+  "keywords": ["web-components", "grid", "data-grid", "table", "swivel", "html", "javascript", "extension-system"],
+  "author": "Tanish Alaparthi",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/thanish/swivel-grid"
+  },
+  "homepage": "https://swivelgrid.thanish.com/",
   "devDependencies": {
     "@vitest/coverage-v8": "^2.1.8",
     "jsdom": "^25.0.1",

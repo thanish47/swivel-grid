@@ -3,6 +3,8 @@
  * Handles column sorting functionality, sort indicators, and event listeners
  * Extracted from core SwivelGrid to support modular architecture
  */
+import { BaseExtension } from './BaseExtension.js';
+
 class SortingExtension extends BaseExtension {
     constructor() {
         super('sorting');
@@ -92,8 +94,11 @@ class SortingExtension extends BaseExtension {
             col.sort = col.key === key ? newDirection : undefined;
         });
 
-        // Check if pagination is active (server-side data)
-        const isPaginationActive = gridState.totalPages !== null;
+        // Check if pagination is active (server-side data) via PaginationExtension
+        const paginationExt = grid.getExtension('pagination');
+        const isPaginationActive = paginationExt
+            ? (paginationExt._totalPages !== null && paginationExt._totalPages !== undefined)
+            : false;
         
         if (isPaginationActive) {
             // For server-side pagination, do NOT perform local sorting
@@ -223,8 +228,11 @@ class SortingExtension extends BaseExtension {
         });
 
         // Only sort data if not using server-side pagination
-        const isPaginationActive = gridState.totalPages !== null;
-        if (!isPaginationActive) {
+        const paginationExt2 = grid.getExtension('pagination');
+        const isPaginationActive2 = paginationExt2
+            ? (paginationExt2._totalPages !== null && paginationExt2._totalPages !== undefined)
+            : false;
+        if (!isPaginationActive2) {
             this.sortData(key, direction, column.sortComparator);
         }
 
@@ -377,7 +385,10 @@ class SortingExtension extends BaseExtension {
             });
             
             // Only perform initial sort when pagination is not active
-            const isPaginationActive = context.totalPages !== null;
+            const paginationExtInit = this.getGrid()?.getExtension('pagination');
+            const isPaginationActive = paginationExtInit
+                ? (paginationExtInit._totalPages !== null && paginationExtInit._totalPages !== undefined)
+                : false;
             if (!isPaginationActive) {
                 // Sort the actual data
                 const grid = this.getGrid();
@@ -395,9 +406,9 @@ class SortingExtension extends BaseExtension {
     }
 }
 
-// Export for use in both ES modules and browser globals
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = SortingExtension;
-} else if (typeof window !== 'undefined') {
+export { SortingExtension };
+export default SortingExtension;
+
+if (typeof window !== 'undefined' && !window.SortingExtension) {
     window.SortingExtension = SortingExtension;
 }

@@ -108,9 +108,11 @@ class BaseExtension {
     onDestroy() {}
 }
 
-// Export for use in both ES modules and browser globals
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = BaseExtension;
-} else if (typeof window !== 'undefined') {
+// ES module export (used by Vite/Vitest and modern bundlers)
+export { BaseExtension };
+export default BaseExtension;
+
+// Legacy browser global fallback (for plain <script> tag usage)
+if (typeof window !== 'undefined' && !window.BaseExtension) {
     window.BaseExtension = BaseExtension;
 }

@@ -61,7 +61,7 @@ class SwivelGrid extends HTMLElement {
     get searchInput() { return this._searchInput; }
     set searchInput(value) {
         this._propSet.searchInput = true;
-        this._unbindSearchInput(); // unbind from old selector before it changes
+        this._unbindSearchInput?.(); // unbind from old selector before it changes
         this._searchInput = value || null;
         
         // Delegate to SearchExtension
@@ -129,7 +129,35 @@ class SwivelGrid extends HTMLElement {
     listExtensions() {
         return Array.from(this._extensions.keys());
     }
-    
+
+    /**
+     * Hot-replace an extension by name without touching other extensions.
+     * If no extension with the given name is currently registered the new
+     * instance is simply registered.
+     * @param {string} name - Name of the extension to replace
+     * @param {BaseExtension} newExtensionInstance - Replacement instance
+     * @returns {boolean} true if registration of the new extension succeeded
+     */
+    swapExtension(name, newExtensionInstance) {
+        this.unregisterExtension(name);
+        return this.registerExtension(newExtensionInstance);
+    }
+
+    /**
+     * Enable or disable an extension and optionally trigger a re-render.
+     * @param {string} name - Extension name
+     * @param {boolean} enabled - Desired enabled state
+     * @param {boolean} [rerender=true] - Whether to re-render after toggling
+     * @returns {boolean} false if the extension was not found, otherwise true
+     */
+    toggleExtension(name, enabled, rerender = true) {
+        const ext = this.getExtension(name);
+        if (!ext) return false;
+        ext.setEnabled(enabled);
+        if (rerender) this.render();
+        return true;
+    }
+
     _addToHook(hookName, extension) {
         const hooks = this._extensionHooks[hookName];
         if (!hooks) return;
@@ -338,6 +366,17 @@ class SwivelGrid extends HTMLElement {
         }));
     }
 
+    dispatchExtensionEvent(type, detail) {
+        this._dispatchEvent(type, detail);
+    }
+
+    getDOMElements() {
+        return {
+            tbody: this.shadowRoot?.querySelector('tbody'),
+            gridContainer: this.shadowRoot?.querySelector('.grid-container'),
+        };
+    }
+
     // Public methods
     setData(rows) {
         this._rows = Array.isArray(rows) ? [...rows] : [];
@@ -356,14 +395,12 @@ class SwivelGrid extends HTMLElement {
     // These methods will be added to the grid instance when the extension loads
 
     destroy() {
-        // Extensions handle their own cleanup
-        
-        // Destroy all extensions
-        this._extensions.forEach(extension => {
-            if (extension.onDestroy) {
-                extension.onDestroy();
-            }
-        });
+        for (const extension of this._extensions.values()) {
+            extension.destroy();
+        }
+        this._extensions.clear();
+        this._extensionHooks.beforeRender = [];
+        this._extensionHooks.afterRender = [];
     }
 
     render() {

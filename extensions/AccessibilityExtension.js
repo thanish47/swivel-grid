@@ -3,6 +3,8 @@
  * Handles ARIA labels, keyboard navigation, screen reader support, and semantic HTML
  * Extracted from core SwivelGrid to support modular architecture
  */
+import { BaseExtension } from './BaseExtension.js';
+
 class AccessibilityExtension extends BaseExtension {
     constructor() {
         super('accessibility');
@@ -725,9 +727,9 @@ class AccessibilityExtension extends BaseExtension {
     }
 }
 
-// Export for use in both ES modules and browser globals
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = AccessibilityExtension;
-} else if (typeof window !== 'undefined') {
+export { AccessibilityExtension };
+export default AccessibilityExtension;
+
+if (typeof window !== 'undefined' && !window.AccessibilityExtension) {
     window.AccessibilityExtension = AccessibilityExtension;
 }

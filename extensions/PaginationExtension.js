@@ -3,6 +3,8 @@
  * Handles infinite scroll, page-based data loading, and threshold-triggered prefetching
  * Extracted from core SwivelGrid to support modular architecture
  */
+import { BaseExtension } from './BaseExtension.js';
+
 class PaginationExtension extends BaseExtension {
     constructor() {
         super('pagination');
@@ -573,9 +575,9 @@ class PaginationExtension extends BaseExtension {
     }
 }
 
-// Export for use in both ES modules and browser globals
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = PaginationExtension;
-} else if (typeof window !== 'undefined') {
+export { PaginationExtension };
+export default PaginationExtension;
+
+if (typeof window !== 'undefined' && !window.PaginationExtension) {
     window.PaginationExtension = PaginationExtension;
 }

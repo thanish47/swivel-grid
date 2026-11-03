@@ -3,6 +3,8 @@
  * Handles cell and header template rendering with XSS protection
  * Extracted from core SwivelGrid to support modular architecture
  */
+import { BaseExtension } from './BaseExtension.js';
+
 class TemplateExtension extends BaseExtension {
     constructor() {
         super('templates');
@@ -694,9 +696,9 @@ class TemplateExtension extends BaseExtension {
     }
 }
 
-// Export for use in both ES modules and browser globals
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = TemplateExtension;
-} else if (typeof window !== 'undefined') {
+export { TemplateExtension };
+export default TemplateExtension;
+
+if (typeof window !== 'undefined' && !window.TemplateExtension) {
     window.TemplateExtension = TemplateExtension;
 }

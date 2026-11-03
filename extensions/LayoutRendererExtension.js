@@ -1,3 +1,5 @@
+import { BaseExtension } from './BaseExtension.js';
+
 /**
  * LayoutRendererExtension for SwivelGrid
  * Handles table and grid layout rendering
@@ -246,11 +248,6 @@ class LayoutRendererExtension extends BaseExtension {
             }
         }
         
-        // Fallback to grid's implementation
-        if (this.grid && this.grid._renderCellContent) {
-            return this.grid._renderCellContent(value, column, isGridImage, row);
-        }
-        
         // Handle null/undefined values
         if (value === null || value === undefined) {
             const placeholder = '—';
@@ -287,11 +284,6 @@ class LayoutRendererExtension extends BaseExtension {
                     isGridLabel
                 );
             }
-        }
-        
-        // Fallback to grid's implementation
-        if (this.grid && this.grid._renderHeaderContent) {
-            return this.grid._renderHeaderContent(column, isGridLabel);
         }
         
         // Basic fallback for label rendering
@@ -612,9 +604,9 @@ class LayoutRendererExtension extends BaseExtension {
     }
 }
 
-// Export for use in both ES modules and browser globals
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = LayoutRendererExtension;
-} else if (typeof window !== 'undefined') {
+export { LayoutRendererExtension };
+export default LayoutRendererExtension;
+
+if (typeof window !== 'undefined' && !window.LayoutRendererExtension) {
     window.LayoutRendererExtension = LayoutRendererExtension;
 }

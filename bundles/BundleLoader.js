@@ -351,6 +351,17 @@ class BundleLoader {
     }
 
     /**
+     * Load extensions defined in a serialized BundleBuilder config.
+     * @param {SwivelGrid} gridInstance
+     * @param {{ version: number, features: Array }} configObj - Output of BundleBuilder.toConfig()
+     * @param {Object} options
+     * @returns {Promise<Object>} { success, loadedExtensions, errors }
+     */
+    async loadFromConfig(gridInstance, configObj, options = {}) {
+        return BundleLoader.loadFromConfig(gridInstance, configObj, options);
+    }
+
+    /**
      * Static method to create a bundle loader and load a bundle in one step
      * @param {SwivelGrid} gridInstance - Grid instance
      * @param {string} bundleName - Bundle to load
@@ -364,7 +375,7 @@ class BundleLoader {
 
     /**
      * Static method to load bundle by use case
-     * @param {SwivelGrid} gridInstance - Grid instance  
+     * @param {SwivelGrid} gridInstance - Grid instance
      * @param {string} useCase - Use case name
      * @param {Object} options - Loading options
      * @returns {Promise<Object>} Loading result
@@ -372,6 +383,55 @@ class BundleLoader {
     static async quickLoadForUseCase(gridInstance, useCase, options = {}) {
         const loader = new BundleLoader();
         return await loader.loadForUseCase(gridInstance, useCase, options);
+    }
+
+    /**
+     * Static: restore a BundleBuilder config and load the resulting extensions into a grid.
+     * @param {SwivelGrid} gridInstance
+     * @param {{ version: number, features: Array }} configObj
+     * @param {Object} options
+     * @returns {Promise<Object>} { success, loadedExtensions, errors }
+     */
+    static async loadFromConfig(gridInstance, configObj, options = {}) {
+        const result = { success: false, loadedExtensions: [], errors: [] };
+
+        if (!gridInstance) {
+            result.errors.push('Grid instance is required');
+            return result;
+        }
+
+        const BBClass = (typeof BundleBuilder !== 'undefined') ? BundleBuilder
+            : (typeof globalThis !== 'undefined' && globalThis.BundleBuilder)
+            || (typeof window   !== 'undefined' && window.BundleBuilder);
+
+        if (!BBClass) {
+            result.errors.push('BundleBuilder not found in global scope');
+            return result;
+        }
+
+        try {
+            const builder = BBClass.fromConfig(configObj);
+            const instances = builder.build();
+
+            for (const ext of instances) {
+                try {
+                    if (!gridInstance.hasExtension(ext.name)) {
+                        gridInstance.registerExtension(ext);
+                        result.loadedExtensions.push(ext.name);
+                    } else {
+                        result.loadedExtensions.push(`${ext.name} (already loaded)`);
+                    }
+                } catch (err) {
+                    result.errors.push(`Failed to load ${ext.name}: ${err.message}`);
+                }
+            }
+
+            result.success = result.errors.length === 0;
+        } catch (err) {
+            result.errors.push(`loadFromConfig failed: ${err.message}`);
+        }
+
+        return result;
     }
 }
 

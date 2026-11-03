@@ -3,6 +3,8 @@
  * Handles external search input binding and search event management
  * Extracted from core SwivelGrid to support modular architecture
  */
+import { BaseExtension } from './BaseExtension.js';
+
 class SearchExtension extends BaseExtension {
     constructor() {
         super('search');
@@ -273,9 +275,9 @@ class SearchExtension extends BaseExtension {
     }
 }
 
-// Export for use in both ES modules and browser globals
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = SearchExtension;
-} else if (typeof window !== 'undefined') {
+export { SearchExtension };
+export default SearchExtension;
+
+if (typeof window !== 'undefined' && !window.SearchExtension) {
     window.SearchExtension = SearchExtension;
 }

@@ -3,6 +3,8 @@
  * Handles CSS class sanitization, application, and management
  * Extracted from core SwivelGrid to support modular architecture
  */
+import { BaseExtension } from './BaseExtension.js';
+
 class CssClassesExtension extends BaseExtension {
     constructor() {
         super('css-classes');
@@ -519,9 +521,9 @@ class CssClassesExtension extends BaseExtension {
     }
 }
 
-// Export for use in both ES modules and browser globals
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = CssClassesExtension;
-} else if (typeof window !== 'undefined') {
+export { CssClassesExtension };
+export default CssClassesExtension;
+
+if (typeof window !== 'undefined' && !window.CssClassesExtension) {
     window.CssClassesExtension = CssClassesExtension;
 }

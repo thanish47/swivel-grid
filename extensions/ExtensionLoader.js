@@ -167,37 +167,163 @@ class ExtensionLoader {
     }
 
     /**
-     * Create a minimal grid setup with core extensions
-     * @param {SwivelGrid} grid - The grid instance
-     * @returns {Array} Array of loaded core extension names
+     * Load only the layout-renderer extension — the smallest usable grid.
+     * @param {SwivelGrid} grid
+     * @returns {Array} Array of loaded extension names
      */
     loadMinimalSetup(grid) {
-        // This would load only the most essential extensions
-        // For now, return empty array since we haven't created specific extensions yet
-        return [];
+        const defs = [
+            { Extension: _resolveGlobal('LayoutRendererExtension'), name: 'layout-renderer' },
+        ].filter(d => d.Extension);
+        return this.loadExtensions(grid, defs);
     }
 
     /**
-     * Create a standard grid setup with common extensions
-     * @param {SwivelGrid} grid - The grid instance
+     * Load the standard set: layout-renderer + templates + sorting.
+     * Matches StandardBundle composition.
+     * @param {SwivelGrid} grid
      * @returns {Array} Array of loaded extension names
      */
     loadStandardSetup(grid) {
-        // This would load the standard bundle
-        // For now, return empty array since we haven't created the standard bundle yet
-        return [];
+        const defs = [
+            { Extension: _resolveGlobal('LayoutRendererExtension'), name: 'layout-renderer' },
+            { Extension: _resolveGlobal('TemplateExtension'),       name: 'templates' },
+            { Extension: _resolveGlobal('SortingExtension'),        name: 'sorting' },
+        ].filter(d => d.Extension);
+        return this.loadExtensions(grid, defs);
     }
 
     /**
-     * Create a full-featured grid setup with all extensions
-     * @param {SwivelGrid} grid - The grid instance
+     * Load all seven extensions in priority order.
+     * Matches AdvancedBundle composition.
+     * @param {SwivelGrid} grid
      * @returns {Array} Array of loaded extension names
      */
     loadAdvancedSetup(grid) {
-        // This would load the advanced bundle
-        // For now, return empty array since we haven't created the advanced bundle yet
-        return [];
+        const defs = [
+            { Extension: _resolveGlobal('PaginationExtension'),     name: 'pagination' },
+            { Extension: _resolveGlobal('LayoutRendererExtension'), name: 'layout-renderer' },
+            { Extension: _resolveGlobal('TemplateExtension'),       name: 'templates' },
+            { Extension: _resolveGlobal('SortingExtension'),        name: 'sorting' },
+            { Extension: _resolveGlobal('SearchExtension'),         name: 'search' },
+            { Extension: _resolveGlobal('CssClassesExtension'),     name: 'css-classes' },
+            { Extension: _resolveGlobal('AccessibilityExtension'),  name: 'accessibility' },
+        ].filter(d => d.Extension);
+        return this.loadExtensions(grid, defs);
     }
+
+    /**
+     * Load a custom set of features by name, auto-resolving dependencies via BundleBuilder.
+     * @param {SwivelGrid} grid
+     * @param {string[]} featureList - e.g. ['sorting', 'search']
+     * @param {Object} config - Optional per-feature config keyed by feature name
+     * @returns {{ loaded: string[], skipped: string[], errors: string[] }}
+     */
+    loadCustomBundle(grid, featureList, config = {}) {
+        const result = { loaded: [], skipped: [], errors: [] };
+
+        const BBClass = _resolveGlobal('BundleBuilder');
+        if (!BBClass) {
+            result.errors.push('BundleBuilder not found in global scope');
+            return result;
+        }
+
+        let instances;
+        try {
+            const builder = new BBClass();
+            for (const name of featureList) {
+                builder.addFeature(name, config[name] || {});
+            }
+            instances = builder.build();
+        } catch (err) {
+            result.errors.push(err.message);
+            return result;
+        }
+
+        for (const ext of instances) {
+            if (grid.hasExtension(ext.name)) {
+                result.skipped.push(ext.name);
+            } else {
+                const ok = this.loadExtension(grid, ext);
+                if (ok) {
+                    result.loaded.push(ext.name);
+                } else {
+                    result.errors.push(`Failed to register "${ext.name}"`);
+                }
+            }
+        }
+
+        return result;
+    }
+
+    /**
+     * Restore a custom bundle from a serialized BundleBuilder config and load it.
+     * @param {SwivelGrid} grid
+     * @param {{ version: number, features: Array }} configObj - Output of BundleBuilder.toConfig()
+     * @returns {{ loaded: string[], skipped: string[], errors: string[] }}
+     */
+    createCustomSetup(grid, configObj) {
+        const result = { loaded: [], skipped: [], errors: [] };
+
+        const BBClass = _resolveGlobal('BundleBuilder');
+        if (!BBClass) {
+            result.errors.push('BundleBuilder not found in global scope');
+            return result;
+        }
+
+        let instances;
+        try {
+            const builder = BBClass.fromConfig(configObj);
+            instances = builder.build();
+        } catch (err) {
+            result.errors.push(err.message);
+            return result;
+        }
+
+        for (const ext of instances) {
+            if (grid.hasExtension(ext.name)) {
+                result.skipped.push(ext.name);
+            } else {
+                const ok = this.loadExtension(grid, ext);
+                if (ok) {
+                    result.loaded.push(ext.name);
+                } else {
+                    result.errors.push(`Failed to register "${ext.name}"`);
+                }
+            }
+        }
+
+        return result;
+    }
+
+    /**
+     * Dynamically import an extension module and register it with the grid.
+     * @param {SwivelGrid} grid
+     * @param {string} extensionPath - Path passed to dynamic import()
+     * @param {Object} config - Config passed to the extension constructor
+     * @returns {Promise<boolean>} true if registration succeeded
+     */
+    async lazyLoad(grid, extensionPath, config = {}) {
+        try {
+            const mod = await import(extensionPath);
+            const ExtClass = mod.default || Object.values(mod).find(v => typeof v === 'function');
+            if (!ExtClass) {
+                console.error(`ExtensionLoader.lazyLoad: no constructor found in "${extensionPath}"`);
+                return false;
+            }
+            return this.loadExtension(grid, new ExtClass(config));
+        } catch (err) {
+            console.error(`ExtensionLoader.lazyLoad: failed to import "${extensionPath}":`, err);
+            return false;
+        }
+    }
+}
+
+function _resolveGlobal(className) {
+    if (typeof globalThis !== 'undefined' && globalThis[className]) return globalThis[className];
+    if (typeof window   !== 'undefined' && window[className])   return window[className];
+    if (typeof global   !== 'undefined' && global[className])   return global[className];
+    return null;
 }
 
 // Export for use in both ES modules and browser globals
