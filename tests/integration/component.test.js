@@ -21,16 +21,18 @@ describe('Default state', () => {
         expect(el.rows).toEqual([]);
     });
 
-    it('defaults pageSize to 100', () => {
-        expect(el.pageSize).toBe(100);
-    });
-
-    it('defaults totalPages to null', () => {
-        expect(el.totalPages).toBeNull();
-    });
-
     it('has a shadow root', () => {
         expect(el.shadowRoot).not.toBeNull();
+    });
+
+    it('has an empty _extensions map', () => {
+        expect(el._extensions).toBeInstanceOf(Map);
+        expect(el._extensions.size).toBe(0);
+    });
+
+    it('has beforeRender and afterRender hook arrays', () => {
+        expect(Array.isArray(el._extensionHooks.beforeRender)).toBe(true);
+        expect(Array.isArray(el._extensionHooks.afterRender)).toBe(true);
     });
 });
 
@@ -106,54 +108,6 @@ describe('rows setter', () => {
     });
 });
 
-// ─── pageSize setter ──────────────────────────────────────────────────────────
-
-describe('pageSize setter', () => {
-    it('stores a valid positive number', () => {
-        el.pageSize = 25;
-        expect(el._pageSize).toBe(25);
-    });
-
-    it('defaults to 100 for zero', () => {
-        el.pageSize = 0;
-        expect(el._pageSize).toBe(100);
-    });
-
-    it('defaults to 100 for negative numbers', () => {
-        el.pageSize = -5;
-        expect(el._pageSize).toBe(100);
-    });
-
-    it('defaults to 100 for non-number', () => {
-        el.pageSize = 'big';
-        expect(el._pageSize).toBe(100);
-    });
-});
-
-// ─── totalPages setter ────────────────────────────────────────────────────────
-
-describe('totalPages setter', () => {
-    it('stores a valid positive number', () => {
-        el.totalPages = 10;
-        expect(el._totalPages).toBe(10);
-    });
-
-    it('stores null for zero', () => {
-        el.totalPages = 0;
-        expect(el._totalPages).toBeNull();
-    });
-
-    it('stores null for negative numbers', () => {
-        el.totalPages = -1;
-        expect(el._totalPages).toBeNull();
-    });
-
-    it('stores null for non-number', () => {
-        el.totalPages = 'ten';
-        expect(el._totalPages).toBeNull();
-    });
-});
-
 // ─── Property precedence over attributes ─────────────────────────────────────
 
 describe('Property vs attribute precedence', () => {
@@ -192,9 +146,70 @@ describe('attributeChangedCallback', () => {
 
     it('does nothing when old and new values are equal', () => {
         el.setAttribute('layout-type', 'table');
-        const spy = el.render.bind(el);
         el.setAttribute('layout-type', 'table'); // same value — no-op
-        // no error thrown, state unchanged
         expect(el._layoutType).toBe('table');
+    });
+});
+
+// ─── Extension management API ─────────────────────────────────────────────────
+
+describe('Extension management API', () => {
+    it('registerExtension returns true for a new extension', () => {
+        const ext = new SortingExtension();
+        expect(el.registerExtension(ext)).toBe(true);
+    });
+
+    it('registerExtension returns false for duplicate', () => {
+        const ext = new SortingExtension();
+        el.registerExtension(ext);
+        const ext2 = new SortingExtension();
+        expect(el.registerExtension(ext2)).toBe(false);
+    });
+
+    it('getExtension returns the registered extension', () => {
+        const ext = new SortingExtension();
+        el.registerExtension(ext);
+        expect(el.getExtension('sorting')).toBe(ext);
+    });
+
+    it('getExtension returns null for unknown name', () => {
+        expect(el.getExtension('nonexistent')).toBeNull();
+    });
+
+    it('hasExtension returns true after registration', () => {
+        el.registerExtension(new SortingExtension());
+        expect(el.hasExtension('sorting')).toBe(true);
+    });
+
+    it('hasExtension returns false before registration', () => {
+        expect(el.hasExtension('sorting')).toBe(false);
+    });
+
+    it('listExtensions returns array of registered names', () => {
+        el.registerExtension(new SortingExtension());
+        el.registerExtension(new SearchExtension());
+        const names = el.listExtensions();
+        expect(names).toContain('sorting');
+        expect(names).toContain('search');
+    });
+
+    it('unregisterExtension removes the extension', () => {
+        el.registerExtension(new SortingExtension());
+        el.unregisterExtension('sorting');
+        expect(el.hasExtension('sorting')).toBe(false);
+    });
+
+    it('unregisterExtension returns false for unknown extension', () => {
+        expect(el.unregisterExtension('nonexistent')).toBe(false);
+    });
+
+    it('extensions are inserted into beforeRender hooks by priority', () => {
+        el.registerExtension(new SortingExtension()); // priority 30
+        el.registerExtension(new LayoutRendererExtension()); // priority 10
+        // LayoutRenderer (10) should be before Sorting (30) in hooks
+        const beforeRenderHooks = el._extensionHooks.beforeRender;
+        const layoutIdx = beforeRenderHooks.findIndex(e => e.name === 'layout-renderer');
+        const sortIdx = beforeRenderHooks.findIndex(e => e.name === 'sorting');
+        expect(layoutIdx).toBeLessThan(sortIdx);
     });
 });

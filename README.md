@@ -4,7 +4,7 @@ A framework-agnostic data grid built as a native Web Component (`<swivel-grid>`)
 
 **Live demo:** https://swivelgrid.thanish.com/
 
-**Status:** v1, single file, no dependencies, no build step. It renders all loaded rows (no virtualization yet), so it is best suited to a few thousand rows or fewer. See [Known limitations](#known-limitations) and [ROADMAP.md](ROADMAP.md).
+**Status:** v1, modular extension architecture, no dependencies, no build step. 439 tests passing. It renders all loaded rows by default — use TableVirtualizer or GridVirtualizer for large datasets. See [Known limitations](#known-limitations) and [ROADMAP.md](ROADMAP.md).
 
 ## Features
 
@@ -16,6 +16,52 @@ A framework-agnostic data grid built as a native Web Component (`<swivel-grid>`)
 - **Pagination hooks:** page-change events, an 80% scroll threshold, and a `loadMoreCallback` for server-driven loading.
 - **Accessibility basics:** `aria-sort` on headers, keyboard-operable sorting, screen-reader text for ratings, list roles in grid layout.
 - **Shadow DOM:** styles are encapsulated. Theme it with CSS custom properties.
+
+## Extension System
+
+SwivelGrid ships with a hook-based extension system. Every feature (rendering, sorting, search, pagination, templates, CSS classes, accessibility) is implemented as an extension that participates in `beforeRender` and `afterRender` hook chains.
+
+```js
+import { LayoutRendererExtension } from './extensions/LayoutRendererExtension.js';
+import { SortingExtension } from './extensions/SortingExtension.js';
+
+grid.registerExtension(new LayoutRendererExtension());
+grid.registerExtension(new SortingExtension());
+
+grid.getExtension('sorting');           // → SortingExtension instance
+grid.toggleExtension('sorting', false); // disable without unregistering
+grid.swapExtension('sorting', newExt);  // hot-replace
+```
+
+See [API_REFERENCE.md](API_REFERENCE.md) for full method signatures and [ARCHITECTURE.md](ARCHITECTURE.md) for design details.
+
+## Bundle System
+
+Three ways to load extensions:
+
+**StandardBundle** — LayoutRenderer + Templates + Sorting:
+```js
+import StandardBundle from './bundles/StandardBundle.js';
+await StandardBundle.loadInto(grid);
+```
+
+**AdvancedBundle** — all 7 extensions:
+```js
+import AdvancedBundle from './bundles/AdvancedBundle.js';
+await AdvancedBundle.loadInto(grid);
+```
+
+**BundleBuilder** — compose your own:
+```js
+import BundleBuilder from './bundles/BundleBuilder.js';
+const extensions = new BundleBuilder()
+    .addFeature('sorting')
+    .addFeature('pagination')
+    .build();  // dependency-resolves layout-renderer automatically
+extensions.forEach(ext => grid.registerExtension(ext));
+```
+
+See [BUNDLE_SYSTEM_GUIDE.md](BUNDLE_SYSTEM_GUIDE.md) for the full API, use-case loading, and preset configurations.
 
 ## Quick start
 
@@ -158,20 +204,29 @@ The scroll area has a fixed `max-height` of 600px (400px under 768px wide).
 
 ## Known limitations
 
-- No row virtualization: every loaded row is in the DOM, and scroll tracking measures rows on each animation frame.
+- No row virtualization by default: every loaded row is in the DOM. Use `TableVirtualizer` (fixed-height rows) or `GridVirtualizer` (card layout) for datasets over ~500 rows. Virtualizers require a real browser — jsdom does not implement scroll geometry. See [VIRTUALIZATION_GUIDE.md](VIRTUALIZATION_GUIDE.md).
 - Each full render replaces the shadow DOM contents, so a re-sort resets scroll position and listeners are re-attached.
 - `headerClass` and `cellClass` add class names inside the Shadow DOM. Page stylesheets cannot reach them, so use templates with inline styles or the CSS custom properties above.
 - Rows are not filtered by the grid: search only emits events and calls your handler.
-- No automated tests or CI yet.
+- Extension system requires extension classes to be in global scope (`window` / `globalThis`) before bundle load methods are called.
 - Not published to npm.
 
 ## Project files
 
-| File | Purpose |
+| File / Directory | Purpose |
 |---|---|
-| `SwivelGrid.js` | The component (about 1,260 lines). |
+| `SwivelGrid.js` | Core Web Component host (~846 lines). |
+| `extensions/` | 7 built-in extensions + `BaseExtension` + `ExtensionLoader`. |
+| `bundles/` | `StandardBundle`, `AdvancedBundle`, `BundleLoader`, `BundleBuilder`. |
+| `tests/` | 22 test files, 439 tests (Vitest + jsdom). |
 | `demo.html`, `data.js` | Demo page and sample data. |
-| `ROADMAP.md` | Planned modularization (not implemented). |
+| `API_REFERENCE.md` | Full API for every public method, property, and event. |
+| `ARCHITECTURE.md` | Design decisions, extension lifecycle, author guide. |
+| `BUNDLE_SYSTEM_GUIDE.md` | Bundle loading, presets, BundleBuilder, ExtensionLoader. |
+| `PERFORMANCE_GUIDE.md` | Bundle size comparison, rendering tips, virtualization thresholds. |
+| `VIRTUALIZATION_GUIDE.md` | TableVirtualizer and GridVirtualizer configuration. |
+| `CHANGELOG.md` | Version history. |
+| `ROADMAP.md` | Phase history and remaining work. |
 
 ## Credits and license
 

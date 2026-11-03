@@ -23,25 +23,17 @@ class SwivelGrid extends HTMLElement {
         
         // Property handlers
         this._sortHandler = null;
-        this._pageUpHandler = null;
-        this._pageDownHandler = null;
         this._searchHandler = null;
-        
-        // Infinite scroll properties
-        this._pageSize = 100;
-        this._totalPages = null;
-        this._currentPage = 1;
-        this._loading = false;
-        this._loadMoreCallback = null;
-        this._endReached = false;
-        this._lastTriggeredPage = 0;
-        this._intersectionObserver = null;
         
         // Internal bindings
         this._searchInputListener = null;
-        this._scrollContainer = null;
-        this._isScrolling = false;
-        this._onScroll = this._handleScroll.bind(this);
+        
+        // Extension system
+        this._extensions = new Map();
+        this._extensionHooks = {
+            beforeRender: [],
+            afterRender: []
+        };
     }
 
     // Property getters/setters
@@ -69,46 +61,214 @@ class SwivelGrid extends HTMLElement {
     get searchInput() { return this._searchInput; }
     set searchInput(value) {
         this._propSet.searchInput = true;
-        this._unbindSearchInput(); // unbind from old selector before it changes
+        this._unbindSearchInput?.(); // unbind from old selector before it changes
         this._searchInput = value || null;
-        this._bindSearchInput();
+        
+        // Delegate to SearchExtension
+        const searchExtension = this.getExtension('search');
+        if (searchExtension && searchExtension.enabled) {
+            searchExtension.bindSearchInput(value);
+        } else {
+            console.warn('SwivelGrid: SearchExtension required for search input binding.');
+        }
     }
 
     get sortHandler() { return this._sortHandler; }
     set sortHandler(value) { this._sortHandler = typeof value === 'function' ? value : null; }
 
-    get pageUpHandler() { return this._pageUpHandler; }
-    set pageUpHandler(value) { this._pageUpHandler = typeof value === 'function' ? value : null; }
-
-    get pageDownHandler() { return this._pageDownHandler; }
-    set pageDownHandler(value) { this._pageDownHandler = typeof value === 'function' ? value : null; }
-
-    get pageSize() { return this._pageSize; }
-    set pageSize(value) { 
-        this._pageSize = typeof value === 'number' && value > 0 ? value : 100;
-        this._updateCurrentPage();
-    }
-
-    get totalPages() { return this._totalPages; }
-    set totalPages(value) { 
-        this._totalPages = typeof value === 'number' && value > 0 ? value : null;
-        this._endReached = false; // Reset end flag when totalPages changes
-    }
-
-    get loading() { return this._loading; }
-    set loading(value) { 
-        this._loading = Boolean(value);
-        this._updateLoadMoreSection();
-    }
-
-    get loadMoreCallback() { return this._loadMoreCallback; }
-    set loadMoreCallback(value) { 
-        this._loadMoreCallback = typeof value === 'function' ? value : null;
-        this._updateLoadMoreSection();
-    }
+    // Pagination properties are now handled by PaginationExtension
+    // Getters/setters will be added by the extension when loaded
 
     get searchHandler() { return this._searchHandler; }
     set searchHandler(value) { this._searchHandler = typeof value === 'function' ? value : null; }
+
+    // Extension Management
+    registerExtension(extension) {
+        if (!extension || !extension.name) {
+            console.warn('SwivelGrid: Extension must have a name');
+            return false;
+        }
+        
+        if (this._extensions.has(extension.name)) {
+            console.warn(`SwivelGrid: Extension "${extension.name}" already registered`);
+            return false;
+        }
+        
+        this._extensions.set(extension.name, extension);
+        extension.initialize(this);
+        
+        // Add to hooks based on priority
+        this._addToHook('beforeRender', extension);
+        this._addToHook('afterRender', extension);
+        
+        return true;
+    }
+    
+    unregisterExtension(extensionName) {
+        const extension = this._extensions.get(extensionName);
+        if (!extension) return false;
+        
+        extension.destroy();
+        this._extensions.delete(extensionName);
+        
+        // Remove from hooks
+        this._removeFromHook('beforeRender', extension);
+        this._removeFromHook('afterRender', extension);
+        
+        return true;
+    }
+    
+    getExtension(extensionName) {
+        return this._extensions.get(extensionName) || null;
+    }
+    
+    hasExtension(extensionName) {
+        return this._extensions.has(extensionName);
+    }
+    
+    listExtensions() {
+        return Array.from(this._extensions.keys());
+    }
+
+    /**
+     * Hot-replace an extension by name without touching other extensions.
+     * If no extension with the given name is currently registered the new
+     * instance is simply registered.
+     * @param {string} name - Name of the extension to replace
+     * @param {BaseExtension} newExtensionInstance - Replacement instance
+     * @returns {boolean} true if registration of the new extension succeeded
+     */
+    swapExtension(name, newExtensionInstance) {
+        this.unregisterExtension(name);
+        return this.registerExtension(newExtensionInstance);
+    }
+
+    /**
+     * Enable or disable an extension and optionally trigger a re-render.
+     * @param {string} name - Extension name
+     * @param {boolean} enabled - Desired enabled state
+     * @param {boolean} [rerender=true] - Whether to re-render after toggling
+     * @returns {boolean} false if the extension was not found, otherwise true
+     */
+    toggleExtension(name, enabled, rerender = true) {
+        const ext = this.getExtension(name);
+        if (!ext) return false;
+        ext.setEnabled(enabled);
+        if (rerender) this.render();
+        return true;
+    }
+
+    _addToHook(hookName, extension) {
+        const hooks = this._extensionHooks[hookName];
+        if (!hooks) return;
+        
+        // Insert in priority order (lower priority numbers first)
+        let insertIndex = hooks.length;
+        for (let i = 0; i < hooks.length; i++) {
+            if (extension.priority < hooks[i].priority) {
+                insertIndex = i;
+                break;
+            }
+        }
+        hooks.splice(insertIndex, 0, extension);
+    }
+    
+    _removeFromHook(hookName, extension) {
+        const hooks = this._extensionHooks[hookName];
+        if (!hooks) return;
+        
+        const index = hooks.indexOf(extension);
+        if (index >= 0) {
+            hooks.splice(index, 1);
+        }
+    }
+
+    /**
+     * Add CSS to the shadow DOM (for extension styling)
+     * @param {string} css - CSS string
+     * @param {string} id - Unique ID for the style element
+     * @returns {boolean} Success status
+     */
+    addExtensionStyles(css, id) {
+        if (!this.shadowRoot || !css || !id) return false;
+        
+        // Remove existing style with same ID
+        const existing = this.shadowRoot.querySelector(`style[data-extension-id="${id}"]`);
+        if (existing) {
+            existing.remove();
+        }
+        
+        const style = document.createElement('style');
+        style.setAttribute('data-extension-id', id);
+        style.textContent = css;
+        this.shadowRoot.appendChild(style);
+        return true;
+    }
+
+    /**
+     * Remove extension styles
+     * @param {string} id - Extension style ID
+     * @returns {boolean} Success status
+     */
+    removeExtensionStyles(id) {
+        if (!this.shadowRoot || !id) return false;
+        
+        const style = this.shadowRoot.querySelector(`style[data-extension-id="${id}"]`);
+        if (style) {
+            style.remove();
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Add event listener to grid with automatic cleanup
+     * @param {string} eventName - Event name
+     * @param {Function} handler - Event handler
+     * @param {string} extensionName - Extension name for cleanup
+     * @returns {Function} Cleanup function
+     */
+    addExtensionEventListener(eventName, handler, extensionName) {
+        if (!this._extensionEventListeners) {
+            this._extensionEventListeners = new Map();
+        }
+        
+        if (!this._extensionEventListeners.has(extensionName)) {
+            this._extensionEventListeners.set(extensionName, []);
+        }
+        
+        const wrappedHandler = (event) => {
+            try {
+                handler(event);
+            } catch (error) {
+                console.error(`Extension ${extensionName} event handler error:`, error);
+            }
+        };
+        
+        this.addEventListener(eventName, wrappedHandler);
+        this._extensionEventListeners.get(extensionName).push({
+            eventName,
+            handler: wrappedHandler
+        });
+        
+        return () => this.removeEventListener(eventName, wrappedHandler);
+    }
+
+    /**
+     * Clean up all event listeners for an extension
+     * @param {string} extensionName - Extension name
+     */
+    cleanupExtensionEventListeners(extensionName) {
+        if (!this._extensionEventListeners) return;
+        
+        const listeners = this._extensionEventListeners.get(extensionName);
+        if (listeners) {
+            listeners.forEach(({ eventName, handler }) => {
+                this.removeEventListener(eventName, handler);
+            });
+            this._extensionEventListeners.delete(extensionName);
+        }
+    }
 
     attributeChangedCallback(name, oldValue, newValue) {
         if (oldValue === newValue) return;
@@ -133,7 +293,13 @@ class SwivelGrid extends HTMLElement {
                 break;
             case 'search-input':
                 this._searchInput = newValue;
-                this._bindSearchInput();
+                // Try to use SearchExtension first
+                const searchExtension = this.getExtension('search');
+                if (searchExtension && searchExtension.enabled) {
+                    searchExtension.bindSearchInput(newValue);
+                } else {
+                    console.warn('SwivelGrid: SearchExtension required for search input binding.');
+                }
                 break;
         }
         this.render();
@@ -169,130 +335,28 @@ class SwivelGrid extends HTMLElement {
         }
         
         this.render();
-        this._bindSearchInput();
+        
+        // Search input binding is now handled by SearchExtension
+        // Fallback for when SearchExtension is not loaded
+        // Search input binding is now handled by SearchExtension
     }
 
     disconnectedCallback() {
-        this._unbindSearchInput();
-        this._unbindScrollListeners();
-    }
-
-    _bindSearchInput() {
-        this._unbindSearchInput();
+        // Extensions handle their own cleanup
         
-        if (this._searchInput) {
-            const input = document.querySelector(this._searchInput);
-            if (input) {
-                this._searchInputListener = (e) => {
-                    const query = e.target.value;
-                    this._searchHandler?.(query);
-                    this._dispatchEvent('search', { query });
-                };
-                input.addEventListener('input', this._searchInputListener);
-            }
+        // Cleanup extensions
+        for (const extension of this._extensions.values()) {
+            extension.destroy();
         }
+        this._extensions.clear();
+        this._extensionHooks.beforeRender = [];
+        this._extensionHooks.afterRender = [];
     }
 
-    _unbindSearchInput() {
-        if (this._searchInputListener && this._searchInput) {
-            const input = document.querySelector(this._searchInput);
-            if (input) {
-                input.removeEventListener('input', this._searchInputListener);
-            }
-        }
-        this._searchInputListener = null;
-    }
 
-    _bindScrollListeners() {
-        this._unbindScrollListeners();
-        
-        this._scrollContainer = this.shadowRoot.querySelector('.scroll-container');
-        if (this._scrollContainer) {
-            this._scrollContainer.addEventListener('scroll', this._onScroll);
-        }
-    }
+    // Scroll listeners are now handled by PaginationExtension
 
-    _unbindScrollListeners() {
-        if (this._scrollContainer) {
-            this._scrollContainer.removeEventListener('scroll', this._onScroll);
-        }
-        this._scrollContainer = null;
-    }
-
-    _handleScroll() {
-        if (this._isScrolling) return;
-        
-        this._isScrolling = true;
-        requestAnimationFrame(() => {
-            // Get visible row indices using existing robust calculation
-            let visibleStartIndex = 0;
-            let visibleEndIndex = Math.max(0, this._rows.length - 1);
-            
-            const container = this._scrollContainer;
-            if (this._layoutType === 'table') {
-                const rows = container.querySelectorAll('tbody tr');
-                if (rows.length > 0) {
-                    const containerRect = container.getBoundingClientRect();
-                    for (let i = 0; i < rows.length; i++) {
-                        const rowRect = rows[i].getBoundingClientRect();
-                        if (rowRect.bottom > containerRect.top) {
-                            visibleStartIndex = i;
-                            break;
-                        }
-                    }
-                    for (let i = rows.length - 1; i >= 0; i--) {
-                        const rowRect = rows[i].getBoundingClientRect();
-                        if (rowRect.top < containerRect.bottom) {
-                            visibleEndIndex = i;
-                            break;
-                        }
-                    }
-                }
-            } else {
-                const cards = container.querySelectorAll('.grid-card');
-                if (cards.length > 0) {
-                    const containerRect = container.getBoundingClientRect();
-                    for (let i = 0; i < cards.length; i++) {
-                        const cardRect = cards[i].getBoundingClientRect();
-                        if (cardRect.bottom > containerRect.top) {
-                            visibleStartIndex = i;
-                            break;
-                        }
-                    }
-                    for (let i = cards.length - 1; i >= 0; i--) {
-                        const cardRect = cards[i].getBoundingClientRect();
-                        if (cardRect.top < containerRect.bottom) {
-                            visibleEndIndex = i;
-                            break;
-                        }
-                    }
-                }
-            }
-            
-            // Calculate page based purely on visible indices
-            const visibleMidpoint = Math.floor((visibleStartIndex + visibleEndIndex) / 2);
-            const currentPage = Math.max(1, Math.ceil((visibleMidpoint + 1) / this._pageSize));
-            
-            // Check for page changes
-            if (currentPage !== this._currentPage) {
-                const oldPage = this._currentPage;
-                this._currentPage = currentPage;
-                
-                if (currentPage > oldPage) {
-                    this._pageDownHandler?.(currentPage);
-                    this._dispatchEvent('pageDown', { pageNumber: currentPage });
-                } else if (currentPage < oldPage) {
-                    this._pageUpHandler?.(currentPage);
-                    this._dispatchEvent('pageUp', { pageNumber: currentPage });
-                }
-            }
-            
-            // Check 80% threshold for preloading (index-based)
-            this._checkThresholdTrigger(currentPage, visibleEndIndex);
-            
-            this._isScrolling = false;
-        });
-    }
+    // Scroll handling is now handled by PaginationExtension
 
     _dispatchEvent(type, detail) {
         this.dispatchEvent(new CustomEvent(`swivel:${type}`, {
@@ -302,152 +366,103 @@ class SwivelGrid extends HTMLElement {
         }));
     }
 
+    dispatchExtensionEvent(type, detail) {
+        this._dispatchEvent(type, detail);
+    }
+
+    getDOMElements() {
+        return {
+            tbody: this.shadowRoot?.querySelector('tbody'),
+            gridContainer: this.shadowRoot?.querySelector('.grid-container'),
+        };
+    }
+
     // Public methods
     setData(rows) {
         this._rows = Array.isArray(rows) ? [...rows] : [];
-        this._currentPage = 1;
+        
+        // Reset pagination state if extension is loaded
+        const paginationExtension = this.getExtension('pagination');
+        if (paginationExtension && paginationExtension.enabled) {
+            paginationExtension.resetPaginationState();
+        }
+        
         this.render();
         this._dispatchEvent('data', { type: 'set', length: this._rows.length });
     }
 
-    setPageData(data, pageNumber) {
-        if (!Array.isArray(data)) return;
-        
-        if (pageNumber !== undefined && typeof pageNumber === 'number' && pageNumber >= 1) {
-            // Replace specific page data
-            const startIndex = (pageNumber - 1) * this._pageSize;
-            
-            // Fill gaps with empty objects instead of null to prevent render errors
-            while (this._rows.length < startIndex) {
-                this._rows.push({}); // Empty object instead of null
-            }
-            
-            // Replace page data
-            this._rows.splice(startIndex, this._pageSize, ...data);
-            
-            this.render();
-            this._dispatchEvent('data', { type: 'page-set', pageNumber, length: this._rows.length });
-        } else {
-            // Append data as new page
-            this._rows.push(...data);
-            this._currentPage = Math.ceil(this._rows.length / this._pageSize);
-            
-            // Check if sorting is active - if so, we need to handle page boundaries carefully
-            const activeSort = this._schema.find(col => col.sort);
-            if (activeSort) {
-                // Don't perform client-side sorting when pagination is active
-                const isPaginationActive = this._totalPages !== null;
-                if (isPaginationActive) {
-                    console.warn('SwivelGrid: Client-side sorting disabled when pagination is active. New page data not sorted locally.');
-                    this._renderAppendedRows(data);
-                } else {
-                    // Only sort when no pagination
-                    this._sortData(activeSort.key, activeSort.sort, activeSort.sortComparator);
-                    this.render();
-                }
-            } else {
-                this._renderAppendedRows(data);
-            }
-            
-            this._dispatchEvent('data', { type: 'page-append', length: this._rows.length });
-        }
-        
-        // Reset loading and threshold flags
-        this._loading = false;
-        this._lastTriggeredPage = 0;
-        this._updateCurrentPage();
-    }
-
-    appendData(rows) {
-        if (!Array.isArray(rows) || rows.length === 0) return;
-        
-        this._rows.push(...rows);
-        
-        // If there's an active sort, check if we can re-sort
-        const activeSort = this._schema.find(col => col.sort);
-        if (activeSort) {
-            // Don't perform client-side sorting when pagination is active
-            const isPaginationActive = this._totalPages !== null;
-            if (isPaginationActive) {
-                console.warn('SwivelGrid: Client-side sorting disabled when pagination is active. Appended data not sorted locally.');
-                this._renderAppendedRows(rows);
-            } else {
-                // Only sort when no pagination
-                this._sortData(activeSort.key, activeSort.sort, activeSort.sortComparator);
-                this.render();
-            }
-        } else {
-            // Otherwise, just append the new rows
-            this._renderAppendedRows(rows);
-        }
-        
-        this._dispatchEvent('data', { type: 'append', added: rows.length, length: this._rows.length });
-    }
+    // setPageData and appendData are now handled by PaginationExtension
+    // These methods will be added to the grid instance when the extension loads
 
     destroy() {
-        this._unbindSearchInput();
-        this._unbindScrollListeners();
+        for (const extension of this._extensions.values()) {
+            extension.destroy();
+        }
+        this._extensions.clear();
+        this._extensionHooks.beforeRender = [];
+        this._extensionHooks.afterRender = [];
     }
 
     render() {
         if (!this.shadowRoot) return;
         
-        // Apply initial sorting if specified in schema
-        const initialSort = this._schema.find(col => col.sort === 'ASC' || col.sort === 'DESC');
-        if (initialSort && this._rows.length > 0) {
-            // Clear other sort flags to ensure only one column is sorted
-            this._schema.forEach(col => { if (col !== initialSort) col.sort = undefined; });
-            
-            // Only perform initial sort when pagination is not active
-            const isPaginationActive = this._totalPages !== null;
-            if (!isPaginationActive) {
-                this._sortData(initialSort.key, initialSort.sort, initialSort.sortComparator);
-            } else {
-                console.warn('SwivelGrid: Initial client-side sorting disabled when pagination is active. Server should provide pre-sorted data.');
+        // Create rendering context for extensions
+        let context = {
+            schema: this._schema,
+            rows: this._rows,
+            layoutType: this._layoutType,
+            searchInput: this._searchInput
+        };
+        
+        // Execute beforeRender hooks
+        for (const extension of this._extensionHooks.beforeRender) {
+            if (extension.enabled) {
+                const result = extension.beforeRender(context);
+                if (result) {
+                    context = result;
+                }
             }
         }
+        
+        // Update internal state from context (in case extensions modified it)
+        this._schema = context.schema || this._schema;
+        this._rows = context.rows || this._rows;
+        this._layoutType = context.layoutType || this._layoutType;
+        
+        // Note: Initial sorting is now handled by SortingExtension in beforeRender hook
         
         this.shadowRoot.innerHTML = `
             <style>
                 ${this._getStyles()}
             </style>
             <div class="scroll-container">
-                ${this._renderLayout()}
-                ${this._renderLoadMore()}
+                ${context.layoutHTML || this._renderLayout()}
+                ${context.loadMoreHTML || ''}
             </div>
         `;
         
-        this._bindScrollListeners();
-        this._attachSortListeners();
-        this._bindLoadMoreEvents();
-        this._updateCurrentPage();
+        // Sort listeners are now handled by SortingExtension in afterRender hook
+        
+        // Execute afterRender hooks
+        const renderedElement = this.shadowRoot.querySelector('.scroll-container');
+        for (const extension of this._extensionHooks.afterRender) {
+            if (extension.enabled) {
+                extension.afterRender(context, renderedElement);
+            }
+        }
     }
 
     _renderAppendedRows(newRows) {
-        if (this._layoutType === 'table') {
-            const tbody = this.shadowRoot.querySelector('tbody');
-            if (tbody) {
-                const fragment = document.createDocumentFragment();
-                newRows.forEach((row) => {
-                    const tr = document.createElement('tr');
-                    tr.innerHTML = this._renderTableRow(row);
-                    fragment.appendChild(tr);
-                });
-                tbody.appendChild(fragment);
-            }
-        } else {
-            const gridContainer = this.shadowRoot.querySelector('.grid-container');
-            if (gridContainer) {
-                const fragment = document.createDocumentFragment();
-                newRows.forEach((row) => {
-                    const card = document.createElement('div');
-                    card.className = 'grid-card';
-                    card.innerHTML = this._renderGridCard(row);
-                    fragment.appendChild(card);
-                });
-                gridContainer.appendChild(fragment);
-            }
+        // Delegate to LayoutRendererExtension
+        const layoutExtension = this.getExtension('layout-renderer');
+        if (layoutExtension && layoutExtension.enabled) {
+            layoutExtension.renderAppendedRows(newRows, this._layoutType, this._schema);
+            return;
         }
+        
+        // No fallback - LayoutRendererExtension is required for appending rows
+        console.warn('SwivelGrid: LayoutRendererExtension required for renderAppendedRows. Triggering full re-render instead.');
+        this.render();
     }
 
     _getStyles() {
@@ -459,7 +474,6 @@ class SwivelGrid extends HTMLElement {
                 --border-color: #e1e5e9;
                 --hover-color: #f8f9fa;
                 --text-color: #24292f;
-                --star-color: #fbbf24;
             }
 
             .scroll-container {
@@ -493,26 +507,6 @@ class SwivelGrid extends HTMLElement {
                 margin: 0;
             }
 
-            .grid-image {
-                width: 100%;
-                max-height: 200px;
-                object-fit: cover;
-                border-radius: 4px;
-                margin-bottom: 12px;
-            }
-
-            .grid-image-placeholder {
-                width: 100%;
-                height: 120px;
-                background: #f6f8fa;
-                border: 2px dashed #d1d9e0;
-                border-radius: 4px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                color: #656d76;
-                margin-bottom: 12px;
-            }
 
             .grid-field {
                 margin-bottom: 8px;
@@ -594,47 +588,7 @@ class SwivelGrid extends HTMLElement {
                 background: var(--hover-color);
             }
 
-            .table-image {
-                width: 40px;
-                height: 40px;
-                object-fit: cover;
-                border-radius: 4px;
-            }
 
-            .table-image-placeholder {
-                width: 40px;
-                height: 40px;
-                background: #f6f8fa;
-                border: 1px dashed #d1d9e0;
-                border-radius: 4px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                font-size: 12px;
-                color: #656d76;
-            }
-
-            /* Rating Styles */
-            .rating {
-                display: inline-flex;
-                align-items: center;
-                gap: 2px;
-            }
-
-            .rating-star {
-                color: var(--star-color);
-                font-size: 16px;
-            }
-
-            .rating-star.empty {
-                color: #e1e5e9;
-            }
-
-            .rating-text {
-                margin-left: 4px;
-                font-size: 0.9em;
-                color: #656d76;
-            }
 
             /* Empty state */
             .empty-state {
@@ -661,55 +615,7 @@ class SwivelGrid extends HTMLElement {
                 border: 0;
             }
 
-            /* Template container styles */
-            .template-content {
-                display: contents;
-            }
 
-            /* Load more section styles */
-            .load-more-section {
-                padding: 20px;
-                text-align: center;
-                border-top: 1px solid var(--border-color);
-                background: #f8f9fa;
-            }
-
-            .load-more-button {
-                padding: 12px 24px;
-                background: var(--primary-color);
-                color: white;
-                border: none;
-                border-radius: 6px;
-                cursor: pointer;
-                font-size: 14px;
-                font-weight: 500;
-                transition: background-color 0.2s;
-            }
-
-            .load-more-button:hover {
-                background: #0056a3;
-            }
-
-            .load-more-button:disabled {
-                background: #6c757d;
-                cursor: not-allowed;
-            }
-
-            .spinner {
-                display: inline-block;
-                width: 20px;
-                height: 20px;
-                border: 2px solid #f3f3f3;
-                border-top: 2px solid var(--primary-color);
-                border-radius: 50%;
-                animation: spin 1s linear infinite;
-                margin-right: 8px;
-            }
-
-            @keyframes spin {
-                0% { transform: rotate(0deg); }
-                100% { transform: rotate(360deg); }
-            }
 
             /* Responsive */
             @media (max-width: 768px) {
@@ -739,9 +645,18 @@ class SwivelGrid extends HTMLElement {
             return this._renderEmptyState();
         }
 
-        return this._layoutType === 'table' 
-            ? this._renderTable()
-            : this._renderGrid();
+        // Use LayoutRendererExtension if available (preferred approach)
+        const layoutExtension = this.getExtension('layout-renderer');
+        if (layoutExtension && layoutExtension.enabled) {
+            return this._layoutType === 'table' 
+                ? layoutExtension.renderTable()
+                : layoutExtension.renderGrid();
+        }
+
+        // Minimal fallback implementation
+        return `<div class="extension-fallback">
+            <p>LayoutRendererExtension required for rendering. Please load the extension.</p>
+        </div>`;
     }
 
     _renderEmptyState() {
@@ -753,86 +668,6 @@ class SwivelGrid extends HTMLElement {
         `;
     }
 
-    _renderTable() {
-        return `
-            <div class="table-container">
-                <table>
-                    <thead>
-                        <tr>
-                            ${this._schema.map(col => `
-                                <th class="${this._getSortClass(col)}" 
-                                    data-key="${col.key}"
-                                    style="${this._getColumnStyles(col)}"
-                                    role="columnheader"
-                                    scope="col"
-                                    tabindex="${col.sortable === false ? '-1' : '0'}"
-                                    aria-sort="${col.sort === 'ASC' ? 'ascending' : col.sort === 'DESC' ? 'descending' : 'none'}"
-                                    aria-disabled="${col.sortable === false ? 'true' : 'false'}">
-                                    ${this._renderHeaderContent(col)}
-                                </th>
-                            `).join('')}
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${this._rows.map(row => `
-                            <tr>
-                                ${this._renderTableRow(row)}
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
-            </div>
-        `;
-    }
-
-    _renderTableRow(row) {
-        return this._schema.map(col => `
-            <td style="${this._getColumnStyles(col)}">
-                ${this._renderCellContent(row[col.key], col, false, row)}
-            </td>
-        `).join('');
-    }
-
-    _renderGrid() {
-        return `
-            <div class="grid-container" role="list">
-                ${this._rows.map(row => `
-                    <div class="grid-card" role="listitem">
-                        ${this._renderGridCard(row)}
-                    </div>
-                `).join('')}
-            </div>
-        `;
-    }
-
-    _renderGridCard(row) {
-        const imageCol = this._schema.find(col => col.type === 'image');
-        const otherCols = this._schema.filter(col => col.type !== 'image');
-        
-        let content = '';
-        
-        if (imageCol) {
-            content += this._renderCellContent(row[imageCol.key], imageCol, true);
-        }
-
-        if (otherCols.length) {
-            const primaryField = otherCols[0];
-            const labelId = `label-${Math.random().toString(36).substr(2, 9)}`;
-            
-            content += `
-                <section role="group" aria-labelledby="${labelId}">
-                    ${otherCols.map((col, index) => `
-                        <div class="grid-field">
-                            <span class="grid-field-label" ${index === 0 ? `id="${labelId}"` : ''}>${this._renderHeaderContent(col, true)}:</span>
-                            <span class="grid-field-value">${this._renderCellContent(row[col.key], col, false, row)}</span>
-                        </div>
-                    `).join('')}
-                </section>
-            `;
-        }
-
-        return content;
-    }
 
     _renderCellContent(value, column, isGridImage = false, row = null) {
         // Handle null/empty rows from page gaps
@@ -840,131 +675,69 @@ class SwivelGrid extends HTMLElement {
             row = {};
         }
         
-        // Optional: Use custom cell template if provided
+        // Use LayoutRendererExtension if available (preferred approach)
+        const layoutExtension = this.getExtension('layout-renderer');
+        if (layoutExtension && layoutExtension.enabled) {
+            return layoutExtension.renderCellContent(value, column, isGridImage, row);
+        }
+        
+        // Use custom cell template if provided
         if (column.cellTemplate) {
-            return this._renderTemplate(column.cellTemplate, {
-                value,
-                row,
-                column,
-                isGridImage
+            // Try to use TemplateExtension first
+            const templateExtension = this.getExtension('templates');
+            if (templateExtension && templateExtension.enabled) {
+                return templateExtension.renderTemplate(column.cellTemplate, {
+                    value,
+                    row,
+                    column,
+                    isGridImage
+                });
+            }
+            
+            // Fallback: render template without sanitization
+            console.warn('SwivelGrid: TemplateExtension required for template rendering. Template will not be sanitized.');
+            return column.cellTemplate.replace(/\{\{(\w+)\}\}/g, (match, key) => {
+                const context = { value, row, column, isGridImage };
+                return this._escapeHtml(String(context[key] || ''));
             });
         }
-
-        // Default behavior: fallback to existing logic
+        
+        
+        // Handle null/undefined values
         if (value === null || value === undefined) {
             const placeholder = '—';
-            return column.cellClass ? 
-                `<span class="${this._sanitizeClassName(column.cellClass)}">${placeholder}</span>` : 
-                placeholder;
+            if (column.cellClass) {
+                // Try to use CssClassesExtension first
+                const cssClassesExtension = this.getExtension('css-classes');
+                if (cssClassesExtension && cssClassesExtension.enabled) {
+                    return cssClassesExtension.applyCellClass(placeholder, column, value, row);
+                }
+                
+                // Fallback implementation
+                return `<span class="${this._sanitizeClassName(column.cellClass)}">${placeholder}</span>`;
+            }
+            return placeholder;
         }
-
-        let content;
-        switch (column.type) {
-            case 'rating':
-                content = this._renderRating(value);
-                break;
-            case 'image':
-                content = this._renderImage(value, isGridImage);
-                break;
-            default:
-                content = this._escapeHtml(String(value));
-                break;
-        }
-
-        // Apply cellClass to default content (but not to special types like rating/image)
-        if (column.cellClass && column.type !== 'rating' && column.type !== 'image') {
+        
+        // Basic text rendering
+        let content = this._escapeHtml(String(value));
+        
+        // Apply cellClass to content
+        if (column.cellClass) {
+            // Try to use CssClassesExtension first
+            const cssClassesExtension = this.getExtension('css-classes');
+            if (cssClassesExtension && cssClassesExtension.enabled) {
+                return cssClassesExtension.applyCellClass(content, column, value, row);
+            }
+            
+            // Fallback implementation
             return `<span class="${this._sanitizeClassName(column.cellClass)}">${content}</span>`;
         }
         
         return content;
     }
 
-    _renderRating(value) {
-        const rating = this._parseRating(value);
-        if (!rating.isValid) {
-            return '<span title="Invalid rating">—</span>';
-        }
 
-        const stars = [];
-        for (let i = 1; i <= rating.max; i++) {
-            const isFilled = i <= rating.value;
-            stars.push(`<span class="rating-star ${isFilled ? '' : 'empty'}">★</span>`);
-        }
-
-        return `
-            <div class="rating" aria-label="Rating: ${rating.value} out of ${rating.max}">
-                ${stars.join('')}
-                <span class="sr-only">Rating: ${rating.value} out of ${rating.max}</span>
-            </div>
-        `;
-    }
-
-    _renderImage(value, isGridImage = false) {
-        const image = this._parseImage(value);
-        const className = isGridImage ? 'grid-image' : 'table-image';
-        const placeholderClass = isGridImage ? 'grid-image-placeholder' : 'table-image-placeholder';
-        
-        if (!image.src) {
-            return `<div class="${placeholderClass}" title="No image">📷</div>`;
-        }
-
-        const id = `img-${Math.random().toString(36).slice(2)}`;
-        queueMicrotask(() => {
-            const img = this.shadowRoot?.getElementById(id);
-            if (img) img.addEventListener('error', () => {
-                img.outerHTML = `<div class="${placeholderClass}" title="Image failed to load">📷</div>`;
-            }, { once: true });
-        });
-        return `<img id="${id}" class="${className}" src="${this._escapeHtml(image.src)}" alt="${this._escapeHtml(image.alt)}" />`;
-    }
-
-    _parseRating(value) {
-        if (typeof value === 'object' && value !== null) {
-            return {
-                value: parseInt(value.value) || 0,
-                max: parseInt(value.max) || 5,
-                isValid: !isNaN(value.value)
-            };
-        }
-        
-        if (typeof value === 'string' && value.includes('/')) {
-            const [val, max] = value.split('/').map(s => parseInt(s.trim()));
-            return {
-                value: val || 0,
-                max: max || 5,
-                isValid: !isNaN(val) && !isNaN(max)
-            };
-        }
-        
-        const numValue = parseInt(value);
-        return {
-            value: numValue || 0,
-            max: 5,
-            isValid: !isNaN(numValue)
-        };
-    }
-
-    _parseImage(value) {
-        if (typeof value === 'object' && value !== null) {
-            return {
-                src: value.src || '',
-                alt: value.alt || 'Image'
-            };
-        }
-        
-        return {
-            src: String(value || ''),
-            alt: 'Image'
-        };
-    }
-
-    _getSortClass(column) {
-        const classes = [];
-        if (column.sortable !== false) classes.push('sortable');
-        if (column.sort === 'ASC') classes.push('sort-asc');
-        if (column.sort === 'DESC') classes.push('sort-desc');
-        return classes.join(' ');
-    }
 
     _getColumnStyles(column) {
         const styles = [];
@@ -973,104 +746,6 @@ class SwivelGrid extends HTMLElement {
         return styles.join('; ');
     }
 
-    _attachSortListeners() {
-        const headers = this.shadowRoot.querySelectorAll('th[data-key]');
-        headers.forEach(header => {
-            const key = header.dataset.key;
-            const col = this._schema.find(c => c.key === key);
-            if (col?.sortable === false) return;
-            
-            header.addEventListener('click', (e) => {
-                this._handleSort(e.currentTarget.dataset.key);
-            });
-            header.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    this._handleSort(e.currentTarget.dataset.key);
-                }
-            });
-        });
-    }
-
-    _handleSort(key) {
-        const column = this._schema.find(col => col.key === key);
-        if (!column) return;
-
-        // Toggle sort direction
-        const currentSort = column.sort;
-        const newDirection = currentSort === 'ASC' ? 'DESC' : 'ASC';
-        
-        // Clear all other sorts and set new sort
-        this._schema.forEach(col => {
-            col.sort = col.key === key ? newDirection : undefined;
-        });
-
-        // Check if pagination is active (server-side data)
-        const isPaginationActive = this._totalPages !== null;
-        
-        if (isPaginationActive) {
-            // For server-side pagination, do NOT perform local sorting
-            // This would break page boundaries and cause inconsistent data
-            console.warn('SwivelGrid: Client-side sorting disabled when pagination is active. Sorting should be handled server-side via sortHandler.');
-        } else {
-            // Reset paging when sorting (only for client-side data)
-            this._currentPage = 1;
-            this._lastTriggeredPage = 0;
-            this._endReached = false;
-            
-            // Sort the data (client-side only)
-            this._sortData(key, newDirection, column.sortComparator);
-        }
-
-        // Trigger handlers and events
-        this._sortHandler?.({ key, direction: newDirection });
-        this._dispatchEvent('sort', { key, direction: newDirection });
-
-        // Re-render to show new sort indicators
-        this.render();
-    }
-
-    _sortData(key, direction, customComparator) {
-        this._rows.sort((a, b) => {
-            const aVal = a[key];
-            const bVal = b[key];
-
-            let result;
-            if (customComparator) {
-                result = customComparator(aVal, bVal, a, b);
-            } else {
-                result = this._defaultSort(aVal, bVal, key);
-            }
-
-            return direction === 'DESC' ? -result : result;
-        });
-    }
-
-    _defaultSort(a, b, key) {
-        const column = this._schema.find(col => col.key === key);
-        const type = column?.type || 'text';
-
-        if (type === 'rating') {
-            const aRating = this._parseRating(a);
-            const bRating = this._parseRating(b);
-            const aRatio = aRating.isValid ? aRating.value / aRating.max : 0;
-            const bRatio = bRating.isValid ? bRating.value / bRating.max : 0;
-            return aRatio - bRatio;
-        }
-
-        if (type === 'image') {
-            const aImg = this._parseImage(a);
-            const bImg = this._parseImage(b);
-            return aImg.src.localeCompare(bImg.src);
-        }
-
-        // Default text/numeric comparison
-        if (typeof a === 'number' && typeof b === 'number') {
-            return a - b;
-        }
-
-        return String(a || '').localeCompare(String(b || ''));
-    }
 
     _escapeHtml(text) {
         const div = document.createElement('div');
@@ -1081,186 +756,114 @@ class SwivelGrid extends HTMLElement {
     _renderHeaderContent(column, isGridLabel = false) {
         // Optional: Use custom header template if provided
         if (column.headerTemplate) {
-            return this._renderTemplate(column.headerTemplate, {
-                column,
-                label: column.label,
-                isGridLabel
+            // Try to use TemplateExtension first
+            const templateExtension = this.getExtension('templates');
+            if (templateExtension && templateExtension.enabled) {
+                return templateExtension.renderTemplate(column.headerTemplate, {
+                    column,
+                    label: column.label,
+                    isGridLabel
+                });
+            }
+            
+            // Fallback: render template without sanitization
+            console.warn('SwivelGrid: TemplateExtension required for header template rendering. Template will not be sanitized.');
+            return column.headerTemplate.replace(/\{\{(\w+)\}\}/g, (match, key) => {
+                const context = { column, label: column.label, isGridLabel };
+                return this._escapeHtml(String(context[key] || ''));
             });
         }
 
         // Default behavior with optional class application
         const label = this._escapeHtml(column.label);
         if (column.headerClass) {
+            // Try to use CssClassesExtension first
+            const cssClassesExtension = this.getExtension('css-classes');
+            if (cssClassesExtension && cssClassesExtension.enabled) {
+                return cssClassesExtension.applyHeaderClass(label, column);
+            }
+            
+            // Fallback implementation
             return `<span class="${this._sanitizeClassName(column.headerClass)}">${label}</span>`;
         }
         
         return label;
     }
 
-    _renderTemplate(template, context) {
-        if (typeof template !== 'string') {
-            console.warn('Template must be a string, falling back to default rendering');
-            return context.value ? this._escapeHtml(String(context.value)) : '';
-        }
-
-        try {
-            // Simple template interpolation with context variables
-            return template.replace(/\{\{\s*([^}]+)\s*\}\}/g, (match, expression) => {
-                const keys = expression.trim().split('.');
-                let value = context;
-                
-                // Navigate nested object properties
-                for (const key of keys) {
-                    if (value && typeof value === 'object' && key in value) {
-                        value = value[key];
-                    } else {
-                        return match; // Keep original if property not found
-                    }
-                }
-                
-                // Return escaped HTML for security
-                return value !== null && value !== undefined ? this._escapeHtml(String(value)) : '';
-            });
-        } catch (error) {
-            console.error('Template rendering error:', error);
-            // Fallback to default rendering on error
-            return context.value ? this._escapeHtml(String(context.value)) : '';
-        }
-    }
-
-    _sanitizeTemplate(template) {
-        if (typeof template !== 'string') return null;
-        
-        // Basic template validation - only allow simple interpolation
-        // This prevents script injection while allowing HTML structure
-        const dangerousPatterns = [
-            /<script[^>]*>/gi,
-            /javascript:/gi,
-            /vbscript:/gi,
-            /data:/gi,
-            /on\w+\s*=/gi,
-            /<iframe[^>]*>/gi,
-            /<object[^>]*>/gi,
-            /<embed[^>]*>/gi
-        ];
-        
-        for (const pattern of dangerousPatterns) {
-            if (pattern.test(template)) {
-                console.warn('Template contains potentially dangerous content, sanitizing');
-                return template.replace(pattern, '');
-            }
-        }
-        
-        return template;
-    }
 
     _sanitizeClassName(s) {
+        // Try to use CssClassesExtension first
+        const cssClassesExtension = this.getExtension('css-classes');
+        if (cssClassesExtension && cssClassesExtension.enabled) {
+            return cssClassesExtension.sanitizeClassName(s);
+        }
+        
+        // Fallback implementation
         return typeof s === 'string' ? s.split(/\s+/).map(t => t.replace(/[^\w-]/g, '')).join(' ') : '';
     }
 
-    _updateCurrentPage() {
-        if (this._rows.length === 0) {
-            this._currentPage = 1;
-        } else {
-            this._currentPage = Math.ceil(this._rows.length / this._pageSize);
+    /**
+     * Get header ARIA attributes (uses AccessibilityExtension if available)
+     * @param {Object} column - Column configuration
+     * @returns {string} ARIA attributes
+     */
+    _getHeaderARIA(column) {
+        const accessibilityExtension = this.getExtension('accessibility');
+        if (accessibilityExtension && accessibilityExtension.enabled) {
+            return accessibilityExtension.generateHeaderARIA(column);
         }
-        this._updateLoadMoreSection();
+        
+        // Fallback implementation
+        return [
+            'role="columnheader"',
+            'scope="col"',
+            `tabindex="${column.sortable === false ? '-1' : '0'}"`,
+            `aria-sort="${column.sort === 'ASC' ? 'ascending' : column.sort === 'DESC' ? 'descending' : 'none'}"`,
+            `aria-disabled="${column.sortable === false ? 'true' : 'false'}"`
+        ].join(' ');
     }
 
-    _updateLoadMoreSection() {
-        const loadMoreSection = this.shadowRoot?.querySelector('.load-more-section');
-        if (loadMoreSection) {
-            loadMoreSection.innerHTML = this._getLoadMoreContent();
-            this._bindLoadMoreEvents();
+    /**
+     * Get container ARIA attributes (uses AccessibilityExtension if available)
+     * @param {string} layoutType - Layout type
+     * @returns {Object} ARIA attributes
+     */
+    _getContainerARIA(layoutType) {
+        const accessibilityExtension = this.getExtension('accessibility');
+        if (accessibilityExtension && accessibilityExtension.enabled) {
+            return accessibilityExtension.generateContainerARIA(layoutType);
         }
+        
+        // Fallback implementation
+        if (layoutType === 'grid') {
+            return {
+                container: 'role="list"',
+                item: 'role="listitem"',
+                group: 'role="group"'
+            };
+        }
+        
+        return {
+            container: 'role="table"',
+            item: '',
+            group: ''
+        };
     }
 
-    _renderLoadMore() {
-        // Only show load more section if totalPages is set and we haven't reached the end
-        if (this._totalPages && this._currentPage < this._totalPages) {
-            return `<div class="load-more-section">${this._getLoadMoreContent()}</div>`;
-        }
-        return '';
-    }
-
-    _getLoadMoreContent() {
-        if (this._loading) {
-            return '<div class="spinner"></div>Loading more...';
-        }
-        
-        if (this._loadMoreCallback) {
-            return '<button class="load-more-button" id="load-more-btn">Load More</button>';
-        }
-        
-        return '<div style="color: #6c757d;">Scroll to load more content</div>';
-    }
-
-    _bindLoadMoreEvents() {
-        const loadMoreBtn = this.shadowRoot?.getElementById('load-more-btn');
-        if (loadMoreBtn && this._loadMoreCallback) {
-            loadMoreBtn.addEventListener('click', () => {
-                this._loadMoreCallback();
-            });
-        }
-    }
-
-    _checkThresholdTrigger(currentPage, visibleEndIndex) {
-        // Skip if loading, end reached, or already triggered this page
-        if (this._loading || this._endReached || currentPage === this._lastTriggeredPage) {
-            return;
-        }
-        
-        // Skip if we've reached totalPages
-        if (this._totalPages && currentPage >= this._totalPages) {
-            this._endReached = true;
-            return;
-        }
-        
-        const pageStartIndex = (currentPage - 1) * this._pageSize;
-        const pageEndIndex = Math.min(pageStartIndex + this._pageSize, this._rows.length);
-        const pageSize = pageEndIndex - pageStartIndex;
-        
-        // Guard against division by zero or empty pages
-        if (pageSize <= 0) return;
-        
-        const progressInPage = Math.max(0, visibleEndIndex - pageStartIndex);
-        const pageProgressPercent = Math.min(1, progressInPage / pageSize);
-        
-        if (pageProgressPercent >= 0.8) {
-            this._lastTriggeredPage = currentPage;
-            const nextPage = currentPage + 1;
-            
-            // Dispatch threshold event
-            this._dispatchEvent('pageThreshold', { 
-                pageNumber: currentPage, 
-                threshold: 0.8, 
-                nextPage 
-            });
-            
-            // Auto-prefetch if callback is set
-            if (this._loadMoreCallback && (!this._totalPages || nextPage <= this._totalPages)) {
-                this._loading = true;
-                this._loadMoreCallback();
-            }
-        }
-    }
+    // Pagination UI and threshold methods are now handled by PaginationExtension
 
     _processSchema(schema) {
         if (!Array.isArray(schema)) return [];
         
-        return schema.map(col => {
-            const processedCol = { ...col };
-            
-            // Sanitize templates if provided
-            if (processedCol.headerTemplate) {
-                processedCol.headerTemplate = this._sanitizeTemplate(processedCol.headerTemplate);
-            }
-            if (processedCol.cellTemplate) {
-                processedCol.cellTemplate = this._sanitizeTemplate(processedCol.cellTemplate);
-            }
-            
-            return processedCol;
-        });
+        // Try to use TemplateExtension for template processing
+        const templateExtension = this.getExtension('templates');
+        if (templateExtension && templateExtension.enabled) {
+            return templateExtension.processSchemaTemplates(schema);
+        }
+        
+        // Fallback: return schema as-is when TemplateExtension is not available
+        console.warn('SwivelGrid: TemplateExtension required for template processing. Templates will not be sanitized.');
+        return [...schema];
     }
 }
 

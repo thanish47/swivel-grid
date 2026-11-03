@@ -7,58 +7,70 @@ const rows = [{ name: 'Alpha' }, { name: 'Beta' }];
 // ─── disconnectedCallback ─────────────────────────────────────────────────────
 
 describe('disconnectedCallback', () => {
-    it('clears _scrollContainer reference', () => {
+    it('clears extension references (extensions map is emptied)', () => {
         const el = createGrid(schema, rows);
-        expect(el._scrollContainer).not.toBeNull(); // set after render
+        expect(el.listExtensions().length).toBeGreaterThan(0);
 
         document.body.removeChild(el);
 
-        expect(el._scrollContainer).toBeNull();
+        expect(el.listExtensions()).toHaveLength(0);
     });
 
-    it('clears _searchInputListener', () => {
+    it('clears PaginationExtension scroll container reference', () => {
+        const el = createGrid(schema, rows);
+        const pagExt = el.getExtension('pagination');
+        // After render, PaginationExtension has bound scroll listeners
+        // Capture ref before disconnect
+        const extRef = pagExt;
+
+        document.body.removeChild(el);
+
+        // onDestroy called: _unbindScrollListeners sets _scrollContainer = null
+        expect(extRef._scrollContainer).toBeNull();
+    });
+
+    it('clears SearchExtension listener reference', () => {
         const input = document.createElement('input');
         input.id = 'cleanup-input';
         document.body.appendChild(input);
 
         const el = createGrid(schema, rows);
         el.searchInput = '#cleanup-input';
-        expect(el._searchInputListener).not.toBeNull();
+        const searchExt = el.getExtension('search');
+        expect(searchExt.searchInputListener).not.toBeNull();
+        const extRef = searchExt;
 
         document.body.removeChild(el);
 
-        expect(el._searchInputListener).toBeNull();
+        // onDestroy called: unbindSearchInput sets searchInputListener = null
+        expect(extRef.searchInputListener).toBeNull();
     });
 
     it('does not throw when disconnected without prior search input', () => {
         const el = createGrid(schema, rows);
         expect(() => document.body.removeChild(el)).not.toThrow();
     });
+
+    it('clears beforeRender and afterRender hook arrays', () => {
+        const el = createGrid(schema, rows);
+        document.body.removeChild(el);
+        expect(el._extensionHooks.beforeRender).toHaveLength(0);
+        expect(el._extensionHooks.afterRender).toHaveLength(0);
+    });
 });
 
 // ─── destroy ─────────────────────────────────────────────────────────────────
 
 describe('destroy()', () => {
-    it('clears _scrollContainer', () => {
+    it('destroys all registered extensions', () => {
         const el = createGrid(schema, rows);
-        expect(el._scrollContainer).not.toBeNull();
+        const extNames = el.listExtensions();
+        expect(extNames.length).toBeGreaterThan(0);
 
         el.destroy();
 
-        expect(el._scrollContainer).toBeNull();
-    });
-
-    it('clears _searchInputListener', () => {
-        const input = document.createElement('input');
-        input.id = 'destroy-input';
-        document.body.appendChild(input);
-
-        const el = createGrid(schema, rows);
-        el.searchInput = '#destroy-input';
-
-        el.destroy();
-
-        expect(el._searchInputListener).toBeNull();
+        // After destroy, extensions are removed from the map
+        expect(el.listExtensions()).toHaveLength(0);
     });
 
     it('does not throw when called multiple times', () => {
@@ -67,12 +79,6 @@ describe('destroy()', () => {
             el.destroy();
             el.destroy();
         }).not.toThrow();
-    });
-
-    it('setting loading after destroy does not throw', () => {
-        const el = createGrid(schema, rows);
-        el.destroy();
-        expect(() => { el.loading = true; }).not.toThrow();
     });
 });
 
@@ -91,15 +97,8 @@ describe('Robustness', () => {
         expect(el._searchHandler).toBeNull();
     });
 
-    it('setting non-function loadMoreCallback stores null', () => {
-        const el = createGrid(schema, rows);
-        el.loadMoreCallback = {};
-        expect(el._loadMoreCallback).toBeNull();
-    });
-
     it('render does not throw when shadowRoot is null', () => {
         const el = createGrid(schema, rows);
-        // Simulate missing shadow root by overriding
         Object.defineProperty(el, 'shadowRoot', { get: () => null, configurable: true });
         expect(() => el.render()).not.toThrow();
     });

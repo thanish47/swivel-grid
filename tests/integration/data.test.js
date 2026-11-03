@@ -6,7 +6,6 @@ const schema = [
     { key: 'price', label: 'Price' },
 ];
 
-// Use a factory so each test gets a fresh array (rows setter stores the reference)
 function makeInitialRows() {
     return [
         { name: 'Alpha', price: 10 },
@@ -24,11 +23,12 @@ describe('setData', () => {
         expect(el._rows[0].name).toBe('Only');
     });
 
-    it('resets _currentPage to 1', () => {
+    it('resets pagination currentPage to 1 via PaginationExtension', () => {
         const el = createGrid(schema, makeInitialRows());
-        el._currentPage = 5;
+        const pagExt = el.getExtension('pagination');
+        pagExt._currentPage = 5;
         el.setData([{ name: 'X', price: 1 }]);
-        expect(el._currentPage).toBe(1);
+        expect(pagExt._currentPage).toBe(1);
     });
 
     it('re-renders — DOM row count matches new data length', () => {
@@ -63,12 +63,12 @@ describe('setData', () => {
 describe('appendData', () => {
     it('adds rows to existing _rows', () => {
         const el = createGrid(schema, makeInitialRows(), { layoutType: 'table' });
-        const before = el._rows.length; // 2
+        const before = el._rows.length;
         el.appendData([{ name: 'Gamma', price: 30 }]);
         expect(el._rows).toHaveLength(before + 1);
     });
 
-    it('appends rows to DOM without full re-render (tbody grows)', () => {
+    it('appends rows to DOM (tbody grows)', () => {
         const el = createGrid(schema, makeInitialRows(), { layoutType: 'table' });
         const before = el.shadowRoot.querySelectorAll('tbody tr').length;
         el.appendData([{ name: 'Gamma', price: 30 }]);
@@ -109,7 +109,7 @@ describe('setPageData', () => {
 
     it('replaces page data at given pageNumber', () => {
         const el = createGrid(schema, []);
-        el._pageSize = 2;
+        el.getExtension('pagination')._pageSize = 2;
         el.setPageData([{ name: 'A', price: 1 }, { name: 'B', price: 2 }], 1);
         expect(el._rows).toHaveLength(2);
         expect(el._rows[0].name).toBe('A');
@@ -117,9 +117,10 @@ describe('setPageData', () => {
 
     it('clears _loading flag after update', () => {
         const el = createGrid(schema, makeInitialRows());
-        el._loading = true;
+        const pagExt = el.getExtension('pagination');
+        pagExt._loading = true;
         el.setPageData([{ name: 'X', price: 1 }]);
-        expect(el._loading).toBe(false);
+        expect(pagExt._loading).toBe(false);
     });
 
     it('is a no-op for non-array input', () => {
