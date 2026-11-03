@@ -69,6 +69,7 @@ class SwivelGrid extends HTMLElement {
     get searchInput() { return this._searchInput; }
     set searchInput(value) {
         this._propSet.searchInput = true;
+        this._unbindSearchInput(); // unbind from old selector before it changes
         this._searchInput = value || null;
         this._bindSearchInput();
     }
@@ -1263,4 +1264,8 @@ class SwivelGrid extends HTMLElement {
     }
 }
 
-customElements.define('swivel-grid', SwivelGrid);
+if (!customElements.get('swivel-grid')) {
+    customElements.define('swivel-grid', SwivelGrid);
+}
+
+export { SwivelGrid };
