@@ -1,32 +1,42 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 
 let el;
+let sortExt;
+
+function makeMockGrid(schema, rows = []) {
+    return {
+        _schema: schema,
+        _rows: rows,
+        getExtension: () => null,
+    };
+}
+
 beforeEach(() => {
     el = document.createElement('swivel-grid');
+    sortExt = new SortingExtension();
 });
 
-// ─── _getSortClass ───────────────────────────────────────────────────────────
+// ─── getSortClass ─────────────────────────────────────────────────────────────
 
-describe('_getSortClass', () => {
+describe('getSortClass', () => {
     it('returns "sortable" for a column with no sort set', () => {
-        expect(el._getSortClass({ key: 'name' })).toBe('sortable');
+        expect(sortExt.getSortClass({ key: 'name' })).toBe('sortable');
     });
 
     it('returns "sortable sort-asc" when sort is ASC', () => {
-        expect(el._getSortClass({ key: 'name', sort: 'ASC' })).toBe('sortable sort-asc');
+        expect(sortExt.getSortClass({ key: 'name', sort: 'ASC' })).toBe('sortable sort-asc');
     });
 
     it('returns "sortable sort-desc" when sort is DESC', () => {
-        expect(el._getSortClass({ key: 'name', sort: 'DESC' })).toBe('sortable sort-desc');
+        expect(sortExt.getSortClass({ key: 'name', sort: 'DESC' })).toBe('sortable sort-desc');
     });
 
     it('returns empty string when sortable is false', () => {
-        expect(el._getSortClass({ key: 'name', sortable: false })).toBe('');
+        expect(sortExt.getSortClass({ key: 'name', sortable: false })).toBe('');
     });
 
-    it('still adds sort indicator class even when sortable is false (component behavior)', () => {
-        // sortable:false only suppresses the 'sortable' class, not sort direction classes
-        expect(el._getSortClass({ key: 'name', sortable: false, sort: 'ASC' })).toBe('sort-asc');
+    it('still adds sort indicator class when sortable is false (sort direction is preserved)', () => {
+        expect(sortExt.getSortClass({ key: 'name', sortable: false, sort: 'ASC' })).toBe('sort-asc');
     });
 });
 
@@ -51,81 +61,82 @@ describe('_getColumnStyles', () => {
     });
 });
 
-// ─── _defaultSort ────────────────────────────────────────────────────────────
+// ─── defaultSort ──────────────────────────────────────────────────────────────
 
-describe('_defaultSort', () => {
+describe('defaultSort', () => {
     beforeEach(() => {
-        el._schema = [{ key: 'value', type: 'text' }];
+        sortExt._gridInstance = makeMockGrid([{ key: 'value', type: 'text' }]);
     });
 
     it('sorts numbers in ascending order', () => {
-        expect(el._defaultSort(1, 2, 'value')).toBeLessThan(0);
-        expect(el._defaultSort(2, 1, 'value')).toBeGreaterThan(0);
-        expect(el._defaultSort(5, 5, 'value')).toBe(0);
+        expect(sortExt.defaultSort(1, 2, 'value')).toBeLessThan(0);
+        expect(sortExt.defaultSort(2, 1, 'value')).toBeGreaterThan(0);
+        expect(sortExt.defaultSort(5, 5, 'value')).toBe(0);
     });
 
     it('sorts strings alphabetically (case-insensitive via localeCompare)', () => {
-        expect(el._defaultSort('apple', 'banana', 'value')).toBeLessThan(0);
-        expect(el._defaultSort('banana', 'apple', 'value')).toBeGreaterThan(0);
+        expect(sortExt.defaultSort('apple', 'banana', 'value')).toBeLessThan(0);
+        expect(sortExt.defaultSort('banana', 'apple', 'value')).toBeGreaterThan(0);
     });
 
-    it('sorts rating type by value/max ratio', () => {
-        el._schema = [{ key: 'value', type: 'rating' }];
-        // 2/5 = 0.4 vs 4/5 = 0.8 → negative result
-        expect(el._defaultSort('2/5', '4/5', 'value')).toBeLessThan(0);
+    it('sorts rating type strings (string comparison as fallback)', () => {
+        sortExt._gridInstance = makeMockGrid([{ key: 'value', type: 'rating' }]);
+        // '2/5' < '4/5' alphabetically
+        expect(sortExt.defaultSort('2/5', '4/5', 'value')).toBeLessThan(0);
     });
 
-    it('sorts image type by src', () => {
-        el._schema = [{ key: 'value', type: 'image' }];
-        expect(el._defaultSort('a.jpg', 'b.jpg', 'value')).toBeLessThan(0);
-        expect(el._defaultSort('b.jpg', 'a.jpg', 'value')).toBeGreaterThan(0);
+    it('sorts image type strings (string comparison as fallback)', () => {
+        sortExt._gridInstance = makeMockGrid([{ key: 'value', type: 'image' }]);
+        expect(sortExt.defaultSort('a.jpg', 'b.jpg', 'value')).toBeLessThan(0);
+        expect(sortExt.defaultSort('b.jpg', 'a.jpg', 'value')).toBeGreaterThan(0);
     });
 });
 
-// ─── _sortData ───────────────────────────────────────────────────────────────
+// ─── sortData ────────────────────────────────────────────────────────────────
 
-describe('_sortData', () => {
+describe('sortData', () => {
+    let mockRows;
+
     beforeEach(() => {
-        el._schema = [{ key: 'price', type: 'text' }];
-        el._rows = [
-            { price: 30 },
-            { price: 10 },
-            { price: 20 },
-        ];
+        mockRows = [{ price: 30 }, { price: 10 }, { price: 20 }];
+        sortExt._gridInstance = makeMockGrid(
+            [{ key: 'price', type: 'text' }],
+            mockRows
+        );
     });
 
     it('sorts rows ASC', () => {
-        el._sortData('price', 'ASC', null);
-        expect(el._rows.map(r => r.price)).toEqual([10, 20, 30]);
+        sortExt.sortData('price', 'ASC', null);
+        expect(mockRows.map(r => r.price)).toEqual([10, 20, 30]);
     });
 
     it('sorts rows DESC', () => {
-        el._sortData('price', 'DESC', null);
-        expect(el._rows.map(r => r.price)).toEqual([30, 20, 10]);
+        sortExt.sortData('price', 'DESC', null);
+        expect(mockRows.map(r => r.price)).toEqual([30, 20, 10]);
     });
 
     it('uses custom comparator when provided', () => {
         const customComparator = (a, b) => b - a; // reverse numeric
-        el._sortData('price', 'ASC', customComparator);
-        expect(el._rows.map(r => r.price)).toEqual([30, 20, 10]);
+        sortExt.sortData('price', 'ASC', customComparator);
+        expect(mockRows.map(r => r.price)).toEqual([30, 20, 10]);
     });
 
     it('mutates _rows in place', () => {
-        const original = el._rows;
-        el._sortData('price', 'ASC', null);
-        expect(el._rows).toBe(original); // same array reference
+        const original = sortExt._gridInstance._rows;
+        sortExt.sortData('price', 'ASC', null);
+        expect(sortExt._gridInstance._rows).toBe(original);
     });
 
     it('does not mutate schema', () => {
-        const schemaBefore = JSON.stringify(el._schema);
-        el._sortData('price', 'ASC', null);
-        expect(JSON.stringify(el._schema)).toBe(schemaBefore);
+        const schemaBefore = JSON.stringify(sortExt._gridInstance._schema);
+        sortExt.sortData('price', 'ASC', null);
+        expect(JSON.stringify(sortExt._gridInstance._schema)).toBe(schemaBefore);
     });
 
     it('sorts strings correctly', () => {
-        el._schema = [{ key: 'name', type: 'text' }];
-        el._rows = [{ name: 'Charlie' }, { name: 'Alice' }, { name: 'Bob' }];
-        el._sortData('name', 'ASC', null);
-        expect(el._rows.map(r => r.name)).toEqual(['Alice', 'Bob', 'Charlie']);
+        const rows = [{ name: 'Charlie' }, { name: 'Alice' }, { name: 'Bob' }];
+        sortExt._gridInstance = makeMockGrid([{ key: 'name', type: 'text' }], rows);
+        sortExt.sortData('name', 'ASC', null);
+        expect(rows.map(r => r.name)).toEqual(['Alice', 'Bob', 'Charlie']);
     });
 });

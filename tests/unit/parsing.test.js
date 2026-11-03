@@ -1,95 +1,99 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 
 let el;
+let templateExt;
+
 beforeEach(() => {
     el = document.createElement('swivel-grid');
+    templateExt = new TemplateExtension();
+    // TemplateExtension.parseRating/parseImage don't need a grid reference
 });
 
-// ─── _parseRating ───────────────────────────────────────────────────────────
+// ─── parseRating (via TemplateExtension) ─────────────────────────────────────
 
-describe('_parseRating', () => {
+describe('parseRating', () => {
     it('parses object format {value, max}', () => {
-        expect(el._parseRating({ value: 4, max: 5 })).toEqual({ value: 4, max: 5, isValid: true });
+        expect(templateExt.parseRating({ value: 4, max: 5 })).toEqual({ value: 4, max: 5, isValid: true });
     });
 
     it('parses object with string value', () => {
-        expect(el._parseRating({ value: '3', max: '5' })).toEqual({ value: 3, max: 5, isValid: true });
+        expect(templateExt.parseRating({ value: '3', max: '5' })).toEqual({ value: 3, max: 5, isValid: true });
     });
 
     it('parses "value/max" string format', () => {
-        expect(el._parseRating('4/5')).toEqual({ value: 4, max: 5, isValid: true });
+        expect(templateExt.parseRating('4/5')).toEqual({ value: 4, max: 5, isValid: true });
     });
 
     it('parses "1/10" with custom max', () => {
-        expect(el._parseRating('1/10')).toEqual({ value: 1, max: 10, isValid: true });
+        expect(templateExt.parseRating('1/10')).toEqual({ value: 1, max: 10, isValid: true });
     });
 
     it('parses numeric value (uses default max of 5)', () => {
-        expect(el._parseRating(3)).toEqual({ value: 3, max: 5, isValid: true });
+        expect(templateExt.parseRating(3)).toEqual({ value: 3, max: 5, isValid: true });
     });
 
     it('parses numeric string without slash', () => {
-        expect(el._parseRating('2')).toEqual({ value: 2, max: 5, isValid: true });
+        expect(templateExt.parseRating('2')).toEqual({ value: 2, max: 5, isValid: true });
     });
 
     it('returns isValid:false for non-numeric string', () => {
-        const result = el._parseRating('abc');
+        const result = templateExt.parseRating('abc');
         expect(result.isValid).toBe(false);
         expect(result.value).toBe(0);
     });
 
     it('returns isValid:false for null', () => {
-        const result = el._parseRating(null);
+        const result = templateExt.parseRating(null);
         expect(result.isValid).toBe(false);
         expect(result.value).toBe(0);
     });
 
     it('returns isValid:false for undefined', () => {
-        const result = el._parseRating(undefined);
+        const result = templateExt.parseRating(undefined);
         expect(result.isValid).toBe(false);
     });
 
     it('returns isValid:false for empty string', () => {
-        const result = el._parseRating('');
+        const result = templateExt.parseRating('');
         expect(result.isValid).toBe(false);
     });
 
     it('handles object with missing value', () => {
-        const result = el._parseRating({ max: 5 });
+        const result = templateExt.parseRating({ max: 5 });
         expect(result.value).toBe(0);
         expect(result.isValid).toBe(false);
     });
 });
 
-// ─── _parseImage ────────────────────────────────────────────────────────────
+// ─── parseImage (via TemplateExtension) ──────────────────────────────────────
 
-describe('_parseImage', () => {
+describe('parseImage', () => {
     it('parses object format {src, alt}', () => {
-        expect(el._parseImage({ src: 'url.jpg', alt: 'Cat' })).toEqual({ src: 'url.jpg', alt: 'Cat' });
+        expect(templateExt.parseImage({ src: 'url.jpg', alt: 'Cat' })).toEqual({ src: 'url.jpg', alt: 'Cat' });
     });
 
     it('uses default alt when object has no alt', () => {
-        expect(el._parseImage({ src: 'url.jpg' })).toEqual({ src: 'url.jpg', alt: 'Image' });
+        expect(templateExt.parseImage({ src: 'url.jpg' })).toEqual({ src: 'url.jpg', alt: 'Image' });
     });
 
     it('returns empty src when object has no src', () => {
-        expect(el._parseImage({ alt: 'Cat' })).toEqual({ src: '', alt: 'Cat' });
+        expect(templateExt.parseImage({ alt: 'Cat' })).toEqual({ src: '', alt: 'Cat' });
     });
 
     it('parses string as src with default alt', () => {
-        expect(el._parseImage('url.jpg')).toEqual({ src: 'url.jpg', alt: 'Image' });
+        expect(templateExt.parseImage('url.jpg')).toEqual({ src: 'url.jpg', alt: 'Image' });
     });
 
     it('returns empty src for null', () => {
-        expect(el._parseImage(null)).toEqual({ src: '', alt: 'Image' });
+        expect(templateExt.parseImage(null)).toEqual({ src: '', alt: 'Image' });
     });
 
     it('returns empty src for empty string', () => {
-        expect(el._parseImage('')).toEqual({ src: '', alt: 'Image' });
+        expect(templateExt.parseImage('')).toEqual({ src: '', alt: 'Image' });
     });
 
     it('returns empty src for undefined', () => {
-        expect(el._parseImage(undefined)).toEqual({ src: '', alt: 'Image' });
+        expect(templateExt.parseImage(undefined)).toEqual({ src: '', alt: 'Image' });
     });
 });
 

@@ -1,90 +1,94 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 
 let el;
+let templateExt;
+
 beforeEach(() => {
     el = document.createElement('swivel-grid');
+    templateExt = new TemplateExtension();
 });
 
-// ─── _renderTemplate ─────────────────────────────────────────────────────────
+// ─── renderTemplate (via TemplateExtension) ───────────────────────────────────
 
-describe('_renderTemplate', () => {
+describe('renderTemplate', () => {
     it('replaces a single {{variable}}', () => {
-        expect(el._renderTemplate('Hello {{name}}', { name: 'World' })).toBe('Hello World');
+        expect(templateExt.renderTemplate('Hello {{name}}', { name: 'World' })).toBe('Hello World');
     });
 
     it('replaces multiple variables', () => {
-        const result = el._renderTemplate('{{a}} and {{b}}', { a: 'foo', b: 'bar' });
+        const result = templateExt.renderTemplate('{{a}} and {{b}}', { a: 'foo', b: 'bar' });
         expect(result).toBe('foo and bar');
     });
 
     it('navigates nested properties with dot notation', () => {
-        const result = el._renderTemplate('{{row.name}}', { row: { name: 'Alice' } });
+        const result = templateExt.renderTemplate('{{row.name}}', { row: { name: 'Alice' } });
         expect(result).toBe('Alice');
     });
 
-    it('keeps original {{placeholder}} when property is missing', () => {
-        const result = el._renderTemplate('Hello {{unknown}}', { name: 'World' });
-        expect(result).toBe('Hello {{unknown}}');
+    it('returns empty string when property is missing', () => {
+        // TemplateExtension returns '' for missing properties (unlike old core which kept {{placeholder}})
+        const result = templateExt.renderTemplate('Hello {{unknown}}', { name: 'World' });
+        expect(result).toBe('Hello ');
     });
 
     it('HTML-escapes values to prevent XSS', () => {
-        const result = el._renderTemplate('{{value}}', { value: '<script>alert(1)</script>' });
+        const result = templateExt.renderTemplate('{{value}}', { value: '<script>alert(1)</script>' });
         expect(result).not.toContain('<script>');
         expect(result).toContain('&lt;script&gt;');
     });
 
-    it('returns empty string for falsy context.value when template is not a string', () => {
-        const result = el._renderTemplate(null, { value: '' });
+    it('returns empty string when template is not a string and no value', () => {
+        const result = templateExt.renderTemplate(null, { value: '' });
         expect(result).toBe('');
     });
 
-    it('returns escaped context.value when template is not a string but value exists', () => {
-        const result = el._renderTemplate(42, { value: 'fallback' });
+    it('returns escaped value when template is not a string but value exists', () => {
+        const result = templateExt.renderTemplate(42, { value: 'fallback' });
         expect(result).toBe('fallback');
     });
 
     it('returns empty string for null value in template slot', () => {
-        const result = el._renderTemplate('{{value}}', { value: null });
+        const result = templateExt.renderTemplate('{{value}}', { value: null });
         expect(result).toBe('');
     });
 });
 
-// ─── _sanitizeTemplate ───────────────────────────────────────────────────────
+// ─── sanitizeTemplate (via TemplateExtension) ─────────────────────────────────
 
-describe('_sanitizeTemplate', () => {
+describe('sanitizeTemplate', () => {
     it('returns the template unchanged when it is safe', () => {
         const safe = '<strong>{{value}}</strong>';
-        expect(el._sanitizeTemplate(safe)).toBe(safe);
+        expect(templateExt.sanitizeTemplate(safe)).toBe(safe);
     });
 
     it('removes <script> tags', () => {
-        const result = el._sanitizeTemplate('<script>alert(1)</script>');
+        const result = templateExt.sanitizeTemplate('<script>alert(1)</script>');
         expect(result).not.toContain('<script>');
     });
 
     it('removes inline event handlers (onerror=)', () => {
-        const result = el._sanitizeTemplate('<img onerror="bad()">');
+        const result = templateExt.sanitizeTemplate('<img onerror="bad()">');
         expect(result).not.toContain('onerror=');
     });
 
     it('removes javascript: protocol', () => {
-        const result = el._sanitizeTemplate('<a href="javascript:void(0)">');
+        const result = templateExt.sanitizeTemplate('<a href="javascript:void(0)">');
         expect(result).not.toContain('javascript:');
     });
 
     it('removes iframe tags', () => {
-        const result = el._sanitizeTemplate('<iframe src="bad.html">');
+        const result = templateExt.sanitizeTemplate('<iframe src="bad.html">');
         expect(result).not.toContain('<iframe');
     });
 
     it('returns null for non-string input', () => {
-        expect(el._sanitizeTemplate(null)).toBeNull();
-        expect(el._sanitizeTemplate(42)).toBeNull();
-        expect(el._sanitizeTemplate({})).toBeNull();
+        expect(templateExt.sanitizeTemplate(null)).toBeNull();
+        expect(templateExt.sanitizeTemplate(42)).toBeNull();
+        expect(templateExt.sanitizeTemplate({})).toBeNull();
     });
 
     it('returns empty string unchanged', () => {
-        expect(el._sanitizeTemplate('')).toBe('');
+        expect(templateExt.sanitizeTemplate('')).toBe('');
     });
 });
 

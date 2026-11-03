@@ -62,15 +62,15 @@ describe('searchInput binding', () => {
     });
 });
 
-// ─── _unbindSearchInput ───────────────────────────────────────────────────────
+// ─── SearchExtension.unbindSearchInput ────────────────────────────────────────
 
-describe('_unbindSearchInput', () => {
+describe('SearchExtension unbindSearchInput', () => {
     it('stops firing swivel:search after unbind', () => {
         const input = addSearchInput('search-c');
         const el = createGrid(schema, rows);
         el.searchInput = '#search-c';
 
-        el._unbindSearchInput();
+        el.getExtension('search').unbindSearchInput();
 
         const events = [];
         el.addEventListener('swivel:search', (e) => events.push(e));
@@ -81,14 +81,15 @@ describe('_unbindSearchInput', () => {
         expect(events).toHaveLength(0);
     });
 
-    it('clears _searchInputListener reference after unbind', () => {
+    it('clears searchInputListener reference after unbind', () => {
         const input = addSearchInput('search-d');
         const el = createGrid(schema, rows);
         el.searchInput = '#search-d';
 
-        el._unbindSearchInput();
+        const searchExt = el.getExtension('search');
+        searchExt.unbindSearchInput();
 
-        expect(el._searchInputListener).toBeNull();
+        expect(searchExt.searchInputListener).toBeNull();
     });
 });
 
