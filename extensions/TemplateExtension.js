@@ -16,6 +16,10 @@ class TemplateExtension extends BaseExtension {
         this.addTemplateStyles();
     }
 
+    onAfterRender(context, element) {
+        this.addTemplateStyles();
+    }
+
     onDestroy() {
         this.removeTemplateStyles();
     }
@@ -47,9 +51,10 @@ class TemplateExtension extends BaseExtension {
                         // Get the argument value from context
                         const argValue = this.getValueFromContext(context, argExpr);
                         
-                        // Call the helper function
+                        // Call the helper function, passing context as second arg so
+                        // helpers like renderImage can read isGridImage from layout context
                         try {
-                            return this[functionName](argValue);
+                            return this[functionName](argValue, context);
                         } catch (error) {
                             console.warn(`Error calling ${functionName}:`, error);
                             return this.escapeHtml(String(argValue || ''));
