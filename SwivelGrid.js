@@ -864,7 +864,7 @@ class SwivelGrid extends HTMLElement {
         if (!Array.isArray(schema)) return [];
 
         const hasTemplates = schema.some(col => col.cellTemplate || col.headerTemplate);
-        if (!hasTemplates) return [...schema];
+        if (!hasTemplates) return schema.map(col => ({ ...col }));
 
         const templateExtension = this.getExtension('templates');
         if (templateExtension && templateExtension.enabled) {

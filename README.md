@@ -6,6 +6,53 @@ A framework-agnostic data grid built as a native Web Component (`<swivel-grid>`)
 
 **Status:** v1, modular extension architecture, no dependencies, no build step. 439 tests passing.
 
+## Installation
+
+**npm / yarn / pnpm**
+```sh
+npm install swivel-grid
+yarn add swivel-grid
+pnpm add swivel-grid
+```
+
+**CDN**
+```html
+<!-- UMD — plain <script> tag, no module system needed -->
+<script src="https://unpkg.com/swivel-grid/dist/swivel-grid.umd.cjs"></script>
+
+<!-- ESM — type="module" -->
+<script type="module">
+  import { SwivelGrid } from 'https://unpkg.com/swivel-grid/dist/swivel-grid.esm.js';
+  import { LayoutRendererExtension } from 'https://unpkg.com/swivel-grid/extensions/LayoutRendererExtension.js';
+</script>
+```
+
+**Bundle Builder — single-file download (no package manager needed)**
+
+Visit **[swivelgrid.thanish.com](https://swivelgrid.thanish.com)**, pick the extensions you need, and download a ready-to-use `.js` file. Good for prototypes, legacy setups, or any project without a bundler.
+
+```html
+<!-- After downloading from the builder -->
+<script type="module" src="./swivel-grid-custom.js"></script>
+```
+```js
+import { SwivelGrid, StandardBundle } from './swivel-grid-custom.js';
+await StandardBundle.loadInto(document.querySelector('swivel-grid'));
+```
+
+**Quick start**
+```js
+import { SwivelGrid } from 'swivel-grid';
+import { LayoutRendererExtension } from 'swivel-grid/extensions/LayoutRendererExtension';
+import { SortingExtension } from 'swivel-grid/extensions/SortingExtension';
+
+const grid = document.querySelector('swivel-grid');
+grid.registerExtension(new LayoutRendererExtension());
+grid.registerExtension(new SortingExtension());
+grid.schema = [{ label: 'Name', key: 'name' }];
+grid.rows = [{ name: 'Alice' }];
+```
+
 ## Extension System
 
 Every feature is an extension. Register what you need; leave out what you don't.

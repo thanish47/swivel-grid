@@ -1,16 +1,24 @@
 {
   "name": "swivel-grid",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A framework-agnostic data grid Web Component with a hook-based extension system, bundle loader, and row virtualization.",
   "type": "module",
   "main": "SwivelGrid.js",
+  "module": "dist/swivel-grid.esm.js",
+  "unpkg": "dist/swivel-grid.umd.cjs",
+  "jsdelivr": "dist/swivel-grid.umd.cjs",
   "exports": {
-    ".": "./SwivelGrid.js",
+    ".": {
+      "import": "./SwivelGrid.js",
+      "require": "./dist/swivel-grid.umd.cjs",
+      "default": "./SwivelGrid.js"
+    },
     "./extensions/*": "./extensions/*.js",
     "./bundles/*": "./bundles/*.js"
   },
   "files": [
     "SwivelGrid.js",
+    "dist/",
     "extensions/",
     "bundles/",
     "README.md",
@@ -24,13 +32,24 @@
     "LICENSE"
   ],
   "scripts": {
+    "prepublishOnly": "npm run build && npm test",
+    "build": "vite build",
     "start": "python -m http.server 4400",
     "serve": "python3 -m http.server 4400",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"
   },
-  "keywords": ["web-components", "grid", "data-grid", "table", "swivel", "html", "javascript", "extension-system"],
+  "keywords": [
+    "web-components",
+    "grid",
+    "data-grid",
+    "table",
+    "swivel",
+    "html",
+    "javascript",
+    "extension-system"
+  ],
   "author": "Tanish Alaparthi",
   "license": "MIT",
   "repository": {
@@ -41,6 +60,7 @@
   "devDependencies": {
     "@vitest/coverage-v8": "^2.1.8",
     "jsdom": "^25.0.1",
+    "vite": "^5.4.21",
     "vitest": "^2.1.8"
   }
 }
