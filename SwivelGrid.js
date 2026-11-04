@@ -405,7 +405,10 @@ class SwivelGrid extends HTMLElement {
 
     render() {
         if (!this.shadowRoot) return;
-        
+
+        // Preserve scroll position so re-renders don't jump the user back to top
+        const prevScrollTop = this.shadowRoot.querySelector('.scroll-container')?.scrollTop ?? 0;
+
         // Create rendering context for extensions
         let context = {
             schema: this._schema,
@@ -441,8 +444,13 @@ class SwivelGrid extends HTMLElement {
             </div>
         `;
         
+        if (prevScrollTop > 0) {
+            const sc = this.shadowRoot.querySelector('.scroll-container');
+            if (sc) sc.scrollTop = prevScrollTop;
+        }
+
         // Sort listeners are now handled by SortingExtension in afterRender hook
-        
+
         // Execute afterRender hooks
         const renderedElement = this.shadowRoot.querySelector('.scroll-container');
         for (const extension of this._extensionHooks.afterRender) {
@@ -854,14 +862,15 @@ class SwivelGrid extends HTMLElement {
 
     _processSchema(schema) {
         if (!Array.isArray(schema)) return [];
-        
-        // Try to use TemplateExtension for template processing
+
+        const hasTemplates = schema.some(col => col.cellTemplate || col.headerTemplate);
+        if (!hasTemplates) return [...schema];
+
         const templateExtension = this.getExtension('templates');
         if (templateExtension && templateExtension.enabled) {
             return templateExtension.processSchemaTemplates(schema);
         }
-        
-        // Fallback: return schema as-is when TemplateExtension is not available
+
         console.warn('SwivelGrid: TemplateExtension required for template processing. Templates will not be sanitized.');
         return [...schema];
     }

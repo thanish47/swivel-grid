@@ -1,5 +1,5 @@
 const sampleSchema = [
-    { label: "Image", key: "image", type: "image", minWidth: "120px" },
+    { label: "Image", key: "image", type: 'image', cellTemplate: '{{renderImage value}}', minWidth: "120px" },
     { 
         label: "Name", 
         key: "name", 
@@ -12,7 +12,7 @@ const sampleSchema = [
         key: "price",
         cellTemplate: '<span style="color: #28a745; font-weight: 600; font-size: 1.1em;">{{value}}</span>'
     },
-    { label: "Rating", key: "rating", type: "rating", sort: "DESC" }
+    { label: "Rating", key: "rating", cellTemplate: '{{renderRating value}}', sort: "DESC" }
 ];
 
 const sampleRows = [
@@ -24,14 +24,14 @@ const sampleRows = [
     },
     {
         image: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=200&h=200&fit=crop",
-        name: "Running Shoes", 
+        name: "Running Shoes",
         price: "$129.99",
         rating: { value: 5, max: 5 }
     },
     {
         image: "https://images.unsplash.com/photo-1546868871-7041f2a55e12?w=200&h=200&fit=crop",
         name: "Smart Watch",
-        price: "$299.99", 
+        price: "$299.99",
         rating: 3
     },
     {
@@ -45,47 +45,77 @@ const sampleRows = [
         name: "Laptop Stand",
         price: "$89.99",
         rating: 4
+    },
+    {
+        image: "https://images.unsplash.com/photo-1491553895911-0055eca6402d?w=200&h=200&fit=crop",
+        name: "Sport Sneakers",
+        price: "$149.99",
+        rating: "5/5"
+    },
+    {
+        image: "https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?w=200&h=200&fit=crop",
+        name: "Instant Camera",
+        price: "$89.99",
+        rating: 4
+    },
+    {
+        image: "https://images.unsplash.com/photo-1585386959984-a4155224a1ad?w=200&h=200&fit=crop",
+        name: "Perfume Set",
+        price: "$64.99",
+        rating: "3/5"
+    },
+    {
+        image: "https://images.unsplash.com/photo-1491553895911-0055eca6402d?w=200&h=200&fit=crop",
+        name: "Yoga Mat",
+        price: "$39.99",
+        rating: { value: 4, max: 5 }
+    },
+    {
+        image: "https://images.unsplash.com/photo-1593642632559-0c6d3fc62b89?w=200&h=200&fit=crop",
+        name: "Gaming Laptop",
+        price: "$1,299.99",
+        rating: "5/5"
+    },
+    {
+        image: "https://images.unsplash.com/photo-1560343090-f0409e92791a?w=200&h=200&fit=crop",
+        name: "Leather Wallet",
+        price: "$49.99",
+        rating: 3
+    },
+    {
+        image: "https://images.unsplash.com/photo-1484704849700-f032a568e944?w=200&h=200&fit=crop",
+        name: "Noise-Cancelling Earbuds",
+        price: "$179.99",
+        rating: "4/5"
     }
 ];
 
 window.addEventListener('DOMContentLoaded', () => {
     const swivelGrid = document.querySelector('swivel-grid');
     if (swivelGrid) {
+        if (window.PaginationExtension)        swivelGrid.registerExtension(new window.PaginationExtension());
+        if (window.LayoutRendererExtension)    swivelGrid.registerExtension(new window.LayoutRendererExtension());
+        if (window.TemplateExtension)          swivelGrid.registerExtension(new window.TemplateExtension());
+        if (window.SortingExtension)           swivelGrid.registerExtension(new window.SortingExtension());
+        if (window.SearchExtension)            swivelGrid.registerExtension(new window.SearchExtension());
+        if (window.CssClassesExtension)        swivelGrid.registerExtension(new window.CssClassesExtension());
+        if (window.AccessibilityExtension)     swivelGrid.registerExtension(new window.AccessibilityExtension());
+
         // Set via attributes
         swivelGrid.setAttribute('schema', JSON.stringify(sampleSchema));
         swivelGrid.setAttribute('rows', JSON.stringify(sampleRows));
         swivelGrid.setAttribute('layout-type', 'grid');
         swivelGrid.setAttribute('search-input', '#product-search');
 
-        // Set via properties for event handlers
-        swivelGrid.sortHandler = ({ key, direction }) => {
-            console.log('Sorted by:', key, direction);
-        };
-
-        swivelGrid.pageUpHandler = (pageNumber) => {
-            console.log('Page up to:', pageNumber);
-        };
-
-        swivelGrid.pageDownHandler = (pageNumber) => {
-            console.log('Page down to:', pageNumber);
-            // Simulate loading more data when reaching new pages
-            if (pageNumber > 1) {
-                console.log('Loading page', pageNumber);
-            }
-        };
-
-        // Set pagination properties
-        swivelGrid.pageSize = 3; // Small page size for demo
-        swivelGrid.totalPages = 10; // Demo total pages
-        
-        // Set up load more functionality
+        // Infinite scroll — append new rows when user scrolls to 80% depth
+        let loadingMore = false;
         swivelGrid.loadMoreCallback = () => {
-            console.log('Load more clicked');
+            if (loadingMore) return;
+            loadingMore = true;
             swivelGrid.loading = true;
-            
-            // Simulate API call
+
             setTimeout(() => {
-                const newData = [
+                swivelGrid.appendData([
                     {
                         image: "https://images.unsplash.com/photo-1572635196237-14b3f281503f?w=200&h=200&fit=crop",
                         name: `Product ${Date.now()}`,
@@ -104,11 +134,10 @@ window.addEventListener('DOMContentLoaded', () => {
                         price: `$${(Math.random() * 200 + 50).toFixed(2)}`,
                         rating: Math.floor(Math.random() * 5) + 1
                     }
-                ];
-                
-                swivelGrid.setPageData(newData); // Append as new page
+                ]);
                 swivelGrid.loading = false;
-            }, 1500);
+                loadingMore = false;
+            }, 1200);
         };
 
         swivelGrid.searchHandler = (query) => {
@@ -172,12 +201,12 @@ window.addEventListener('DOMContentLoaded', () => {
                 if (templatesEnabled) {
                     // Enable templates
                     const schemaWithTemplates = [
-                        { label: "Image", key: "image", type: "image", minWidth: "120px" },
+                        { label: "Image", key: "image", type: 'image', cellTemplate: '{{renderImage value}}', minWidth: "120px" },
                         { 
                             label: "Name", 
                             key: "name", 
                             minWidth: "180px",
-                            headerTemplate: '<span style="color: #007acc; font-weight: bold;">📦 {{label}}</span>',
+                            headerTemplate: '<span style="color: #007acc; font-weight: bold;"> {{label}}</span>',
                             cellTemplate: '<div style="display: flex; align-items: center; gap: 8px;"><span style="font-weight: 600; color: #24292f;">{{value}}</span></div>'
                         },
                         { 
@@ -185,17 +214,17 @@ window.addEventListener('DOMContentLoaded', () => {
                             key: "price",
                             cellTemplate: '<span style="color: #28a745; font-weight: 600; font-size: 1.1em;">{{value}}</span>'
                         },
-                        { label: "Rating", key: "rating", type: "rating", sort: "DESC" }
+                        { label: "Rating", key: "rating", cellTemplate: '{{renderRating value}}', sort: "DESC" }
                     ];
                     swivelGrid.schema = schemaWithTemplates;
                     templateToggle.textContent = 'Disable Templates';
                 } else {
                     // Disable templates
                     const schemaWithoutTemplates = [
-                        { label: "Image", key: "image", type: "image", minWidth: "120px" },
+                        { label: "Image", key: "image", type: 'image', cellTemplate: '{{renderImage value}}', minWidth: "120px" },
                         { label: "Name", key: "name", minWidth: "180px" },
                         { label: "Price", key: "price" },
-                        { label: "Rating", key: "rating", type: "rating", sort: "DESC" }
+                        { label: "Rating", key: "rating", cellTemplate: '{{renderRating value}}', sort: "DESC" }
                     ];
                     swivelGrid.schema = schemaWithoutTemplates;
                     templateToggle.textContent = 'Enable Templates';
@@ -216,7 +245,7 @@ window.addEventListener('DOMContentLoaded', () => {
                         { 
                             label: "Image", 
                             key: "image", 
-                            type: "image", 
+                            cellTemplate: '{{renderImage value}}', 
                             minWidth: "120px",
                             headerClass: "header-secondary"
                         },
@@ -236,7 +265,7 @@ window.addEventListener('DOMContentLoaded', () => {
                         { 
                             label: "Rating", 
                             key: "rating", 
-                            type: "rating", 
+                            cellTemplate: '{{renderRating value}}', 
                             sort: "DESC",
                             headerClass: "header-primary"
                         }
@@ -246,10 +275,10 @@ window.addEventListener('DOMContentLoaded', () => {
                 } else {
                     // Disable classes (back to basic)
                     const schemaBasic = [
-                        { label: "Image", key: "image", type: "image", minWidth: "120px" },
+                        { label: "Image", key: "image", type: 'image', cellTemplate: '{{renderImage value}}', minWidth: "120px" },
                         { label: "Name", key: "name", minWidth: "180px" },
                         { label: "Price", key: "price" },
-                        { label: "Rating", key: "rating", type: "rating", sort: "DESC" }
+                        { label: "Rating", key: "rating", cellTemplate: '{{renderRating value}}', sort: "DESC" }
                     ];
                     swivelGrid.schema = schemaBasic;
                     classToggle.textContent = 'Enable Classes';
