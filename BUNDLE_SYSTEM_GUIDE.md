@@ -4,6 +4,8 @@
 
 The SwivelGrid Bundle System provides a convenient way to load curated sets of extensions for different use cases. Instead of manually loading individual extensions, you can use pre-configured bundles that include the optimal combination of features for your needs.
 
+> **Interactive builder:** Visit [swivelgrid.thanish.com](https://swivelgrid.thanish.com) to select extensions, preview bundle size, and download a single self-contained file — no CLI or package manager needed.
+
 ## Quick Start
 
 ### Load Standard Bundle (Most Common)
