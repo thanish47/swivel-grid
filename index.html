@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Swivel Grid - Enhanced Demo</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f6f8fa;
+        }
+
+        .demo-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            padding: 24px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .demo-header {
+            margin-bottom: 0;
+            padding-bottom: 16px;
+            border-bottom: none;
+        }
+
+        .demo-header h1 {
+            margin: 0 0 8px 0;
+            color: #24292f;
+        }
+
+        .demo-header p {
+            margin: 0;
+            color: #656d76;
+        }
+
+        /* ── Tab navigation ──────────────────────────────────── */
+
+        .tab-nav {
+            display: flex;
+            gap: 0;
+            border-bottom: 2px solid #e1e5e9;
+            margin: 16px 0 24px;
+        }
+
+        .tab-btn {
+            padding: 10px 20px;
+            background: none;
+            border: none;
+            border-bottom: 3px solid transparent;
+            margin-bottom: -2px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            color: #656d76;
+            transition: color 0.15s, border-color 0.15s;
+        }
+
+        .tab-btn:hover { color: #24292f; }
+
+        .tab-btn.active {
+            color: #007acc;
+            border-bottom-color: #007acc;
+        }
+
+        .tab-panel { display: none; }
+        .tab-panel.active { display: block; }
+
+        /* ── Tab 1: 2-column layout ──────────────────────────── */
+
+        .demo-layout {
+            display: grid;
+            grid-template-columns: 1fr 320px;
+            gap: 24px;
+            align-items: start;
+        }
+
+        .demo-main { min-width: 0; }
+
+        @media (max-width: 860px) {
+            .demo-layout {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* ── Tab 1: sticky cross-tab link ───────────────────── */
+
+        .tab-cta-row {
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 12px;
+        }
+
+        .tab-cta {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 12px;
+            font-weight: 500;
+            color: #007acc;
+            background: #f0f7ff;
+            border: 1px solid #c8dff4;
+            border-radius: 20px;
+            padding: 4px 12px;
+            cursor: pointer;
+            transition: background 0.15s;
+            text-decoration: none;
+        }
+
+        .tab-cta:hover { background: #ddeeff; }
+
+        /* ── Demo controls ───────────────────────────────────── */
+
+        .demo-controls {
+            margin-bottom: 20px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .demo-controls input {
+            padding: 8px 12px;
+            border: 1px solid #d1d9e0;
+            border-radius: 6px;
+            font-size: 14px;
+            min-width: 200px;
+            flex: 1;
+        }
+
+        .demo-controls button {
+            padding: 8px 16px;
+            background: #007acc;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.2s;
+            white-space: nowrap;
+        }
+
+        .demo-controls button:hover { background: #0056a3; }
+        .demo-controls button:active { background: #004080; }
+
+        /* ── Info sidebar ────────────────────────────────────── */
+
+        .info-section {
+            background: #f6f8fa;
+            border: 1px solid #e1e5e9;
+            border-radius: 8px;
+            padding: 16px 18px;
+        }
+
+        .info-section h3 {
+            margin: 0 0 12px 0;
+            color: #24292f;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .feature-list {
+            list-style: none;
+            padding: 0;
+            margin: 0 0 16px;
+        }
+
+        .feature-list li {
+            color: #656d76;
+            font-size: 13px;
+            padding: 5px 0;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .feature-list li:last-child { border-bottom: none; }
+
+        .feature-list li::before {
+            content: "✓ ";
+            color: #28a745;
+            font-weight: bold;
+        }
+
+        .info-section p {
+            margin: 0;
+            color: #656d76;
+            font-size: 12px;
+            line-height: 1.5;
+        }
+
+        /* Demo-specific class styles for swivel-grid */
+        swivel-grid .header-primary {
+            color: #007acc;
+            font-weight: 700;
+            text-transform: uppercase;
+            font-size: 0.9em;
+            letter-spacing: 0.5px;
+        }
+
+        swivel-grid .header-secondary {
+            color: #6c757d;
+            font-style: italic;
+            font-size: 0.95em;
+        }
+
+        swivel-grid .cell-highlight {
+            background: linear-gradient(90deg, #fff3cd 0%, transparent 100%);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: 600;
+        }
+
+        swivel-grid .cell-success { color: #28a745; font-weight: 600; }
+        swivel-grid .cell-warning { color: #ffc107; font-weight: 600; }
+        swivel-grid .cell-danger  { color: #dc3545; font-weight: 600; }
+        swivel-grid .cell-muted   { color: #6c757d; font-style: italic; }
+
+        swivel-grid .cell-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.85em;
+            font-weight: 500;
+            background: #e9ecef;
+            color: #495057;
+        }
+
+        /* ── Bundle Builder ───────────────────────────────────── */
+
+        .builder-section,
+        .prebuilt-section {
+            margin-top: 32px;
+            padding-top: 24px;
+            border-top: 1px solid #e1e5e9;
+        }
+
+        .builder-section:first-child,
+        .prebuilt-section:first-child {
+            margin-top: 0;
+            padding-top: 0;
+            border-top: none;
+        }
+
+        .builder-section h2,
+        .prebuilt-section h2 {
+            margin: 0 0 4px 0;
+            font-size: 1.1em;
+            color: #24292f;
+        }
+
+        .builder-section > p,
+        .prebuilt-section > p {
+            margin: 0 0 16px 0;
+            color: #656d76;
+            font-size: 14px;
+        }
+
+        .preset-bar {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+
+        .preset-label {
+            font-size: 13px;
+            color: #656d76;
+            font-weight: 500;
+        }
+
+        .preset-btn {
+            padding: 5px 12px;
+            font-size: 13px;
+            border: 1px solid #d1d9e0;
+            border-radius: 20px;
+            background: white;
+            color: #24292f;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .preset-btn:hover { border-color: #007acc; color: #007acc; }
+        .preset-btn.active { background: #007acc; border-color: #007acc; color: white; }
+
+        .extension-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .ext-card {
+            border: 1px solid #d1d9e0;
+            border-radius: 8px;
+            padding: 12px 14px;
+            cursor: pointer;
+            transition: border-color 0.15s, background 0.15s;
+            user-select: none;
+        }
+
+        .ext-card:hover { border-color: #007acc; }
+        .ext-card:has(.ext-checkbox:checked) { border-color: #007acc; background: #f0f7ff; }
+        .ext-required { opacity: 0.75; cursor: default; }
+
+        .ext-card-top {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 4px;
+        }
+
+        .ext-checkbox { width: 15px; height: 15px; accent-color: #007acc; flex-shrink: 0; }
+        .ext-label { font-size: 14px; font-weight: 600; color: #24292f; flex: 1; }
+        .ext-kb { font-size: 12px; color: #656d76; font-weight: 500; white-space: nowrap; }
+        .ext-desc { margin: 0; font-size: 12px; color: #656d76; line-height: 1.4; padding-left: 23px; }
+
+        .builder-footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 12px;
+            padding: 14px 0 0;
+            border-top: 1px solid #e1e5e9;
+            margin-bottom: 12px;
+        }
+
+        .builder-size { font-size: 14px; color: #656d76; }
+        .builder-size strong { color: #24292f; }
+
+        .btn-download {
+            padding: 8px 18px;
+            font-size: 14px;
+            font-weight: 500;
+            background: #007acc;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+
+        .btn-download:hover { background: #0056a3; }
+        .btn-download:active { background: #004080; }
+        .btn-download:disabled { background: #94c5e8; cursor: default; }
+        .btn-download.secondary {
+            background: white;
+            color: #007acc;
+            border: 1px solid #007acc;
+        }
+        .btn-download.secondary:hover { background: #f0f7ff; }
+
+        .usage-hint {
+            font-size: 12px;
+            color: #656d76;
+            background: #f6f8fa;
+            border: 1px solid #e1e5e9;
+            border-radius: 6px;
+            padding: 10px 14px;
+        }
+
+        .usage-hint strong { color: #24292f; display: block; margin-bottom: 4px; }
+        .usage-hint code { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; color: #0a3069; }
+
+        /* ── Pre-built Bundles ────────────────────────────────── */
+
+        .prebuilt-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 16px;
+        }
+
+        .prebuilt-card {
+            border: 1px solid #d1d9e0;
+            border-radius: 8px;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .prebuilt-card h3 { margin: 0 0 4px 0; font-size: 15px; color: #24292f; }
+        .prebuilt-card > div > p { margin: 0 0 10px 0; font-size: 13px; color: #656d76; }
+
+        .feature-tags { display: flex; flex-wrap: wrap; gap: 5px; }
+
+        .tag {
+            font-size: 11px;
+            padding: 2px 8px;
+            border-radius: 12px;
+            background: #e9ecef;
+            color: #495057;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+        }
+
+        .prebuilt-meta { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+        .size-badge { font-size: 13px; font-weight: 600; color: #656d76; white-space: nowrap; }
+    </style>
+</head>
+<body>
+    <div class="demo-container">
+
+        <div class="demo-header">
+            <h1>Swivel Grid - Enhanced Web Component</h1>
+            <p>A flexible grid/table component with sorting, search, special column types, and accessibility features.</p>
+        </div>
+
+        <!-- Tab navigation -->
+        <nav class="tab-nav">
+            <button class="tab-btn active" data-tab="demo">Live Demo</button>
+            <button class="tab-btn" data-tab="builder">Build &amp; Download</button>
+        </nav>
+
+        <!-- ── Tab 1: Live Demo ──────────────────────────────── -->
+        <div id="tab-demo" class="tab-panel active">
+
+            <div class="demo-layout">
+
+                <!-- Left: controls + grid -->
+                <div class="demo-main">
+                    <div class="demo-controls">
+                        <button id="layout-toggle">Switch to Table View</button>
+                        <button id="add-data">Add Random Product</button>
+                        <button id="template-toggle">Disable Templates</button>
+                        <button id="class-toggle">Enable Classes</button>
+                        <input type="text" id="product-search" placeholder="Search products…" />
+                    </div>
+                    <swivel-grid></swivel-grid>
+                </div>
+
+                <!-- Right: feature info -->
+                <aside class="demo-sidebar">
+                    <div class="info-section">
+                        <h3>Features Demonstrated</h3>
+                        <ul class="feature-list">
+                            <li>Grid and Table layout modes</li>
+                            <li>Special column types (rating, images)</li>
+                            <li>External search input binding</li>
+                            <li>Click-to-sort with indicators</li>
+                            <li>Column width constraints</li>
+                            <li>Responsive design</li>
+                            <li>Accessibility with ARIA labels</li>
+                            <li>Dynamic data updates</li>
+                            <li>Custom events (swivel:sort, etc.)</li>
+                            <li>Shadow DOM encapsulation</li>
+                            <li>Infinite scroll / pagination</li>
+                            <li>Framework-agnostic web component</li>
+                        </ul>
+                        <p><strong>Try it:</strong> Search, click headers to sort, switch layout, add products. Open the console to see event logs.</p>
+                    </div>
+                </aside>
+
+            </div>
+        </div>
+
+        <!-- ── Tab 2: Build & Download ───────────────────────── -->
+        <div id="tab-builder" class="tab-panel">
+
+            <!-- Bundle Builder -->
+            <div class="builder-section" style="margin-top:0;padding-top:0;border-top:none;">
+                <h2>Bundle Builder</h2>
+                <p>Select the extensions you need and download a single <code>.js</code> file ready to <code>import</code> in any SPA or project.</p>
+
+                <div class="preset-bar">
+                    <span class="preset-label">Presets:</span>
+                    <button class="preset-btn" data-preset="minimal">Minimal</button>
+                    <button class="preset-btn" data-preset="standard">Standard</button>
+                    <button class="preset-btn" data-preset="table-focused">Table</button>
+                    <button class="preset-btn" data-preset="dashboard">Dashboard</button>
+                    <button class="preset-btn" data-preset="enterprise">Enterprise</button>
+                </div>
+
+                <div class="extension-grid" id="extension-grid"></div>
+
+                <div class="builder-footer">
+                    <span class="builder-size">Estimated size: <strong id="size-estimate">…</strong></span>
+                    <button id="builder-download-btn" class="btn-download">
+                        Download swivel-grid-custom.js
+                    </button>
+                </div>
+
+                <div class="usage-hint">
+                    <strong>In your project:</strong>
+                    <code>import { SwivelGrid, BundleBuilder } from './swivel-grid-custom.js';</code>
+                </div>
+            </div>
+
+            <!-- Pre-built Downloads -->
+            <div class="prebuilt-section">
+                <h2>Pre-built Bundles</h2>
+                <p>Download a ready-to-import file for the two most common configurations.</p>
+                <div class="prebuilt-grid">
+                    <div class="prebuilt-card">
+                        <div>
+                            <h3>Standard Bundle</h3>
+                            <p>Layout Renderer + Templates + Sorting</p>
+                            <div class="feature-tags">
+                                <span class="tag">layout-renderer</span>
+                                <span class="tag">templates</span>
+                                <span class="tag">sorting</span>
+                            </div>
+                        </div>
+                        <div class="prebuilt-meta">
+                            <span class="size-badge">~38 KB</span>
+                            <button id="standard-download-btn" class="btn-download secondary">
+                                Download swivel-grid-standard.js
+                            </button>
+                        </div>
+                    </div>
+                    <div class="prebuilt-card">
+                        <div>
+                            <h3>Advanced Bundle</h3>
+                            <p>All 7 extensions — the full feature set.</p>
+                            <div class="feature-tags">
+                                <span class="tag">layout-renderer</span>
+                                <span class="tag">templates</span>
+                                <span class="tag">sorting</span>
+                                <span class="tag">search</span>
+                                <span class="tag">pagination</span>
+                                <span class="tag">css-classes</span>
+                                <span class="tag">accessibility</span>
+                            </div>
+                        </div>
+                        <div class="prebuilt-meta">
+                            <span class="size-badge">~68 KB</span>
+                            <button id="advanced-download-btn" class="btn-download secondary">
+                                Download swivel-grid-advanced.js
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div><!-- /tab-builder -->
+
+    </div><!-- /demo-container -->
+
+    <script type="module" src="extensions/BaseExtension.js"></script>
+    <script type="module" src="extensions/LayoutRendererExtension.js"></script>
+    <script type="module" src="extensions/TemplateExtension.js"></script>
+    <script type="module" src="extensions/SortingExtension.js"></script>
+    <script type="module" src="extensions/SearchExtension.js"></script>
+    <script type="module" src="extensions/PaginationExtension.js"></script>
+    <script type="module" src="extensions/CssClassesExtension.js"></script>
+    <script type="module" src="extensions/AccessibilityExtension.js"></script>
+    <script type="module" src="SwivelGrid.js"></script>
+    <script src="data.js"></script>
+    <script type="module" src="builder.js"></script>
+
+    <script>
+        // Tab switching
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+                btn.classList.add('active');
+                document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+            });
+        });
+
+        // Sticky CTA in Tab 1 jumps to builder tab
+        document.getElementById('goto-builder').addEventListener('click', () => {
+            document.querySelector('[data-tab="builder"]').click();
+        });
+    </script>
+</body>
+</html>
