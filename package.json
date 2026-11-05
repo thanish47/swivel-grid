@@ -32,6 +32,7 @@
     "SwivelGrid.js",
     "SwivelGrid.d.ts",
     "types.d.ts",
+    "schema-column.schema.json",
     "llms.txt",
     "llms-full.txt",
     "dist/",
