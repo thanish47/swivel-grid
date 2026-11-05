@@ -5,17 +5,33 @@
   "type": "module",
   "main": "SwivelGrid.js",
   "module": "dist/swivel-grid.esm.js",
+  "types": "SwivelGrid.d.ts",
   "unpkg": "dist/swivel-grid.umd.cjs",
   "jsdelivr": "dist/swivel-grid.umd.cjs",
   "exports": {
     ".": {
       "import": "./SwivelGrid.js",
       "require": "./dist/swivel-grid.umd.cjs",
+      "types": "./SwivelGrid.d.ts",
       "default": "./SwivelGrid.js"
     },
+    "./extensions/*": {
+      "import": "./extensions/*.js",
+      "types": "./extensions/*.d.ts"
+    },
+    "./bundles/*": {
+      "import": "./bundles/*.js",
+      "types": "./bundles/*.d.ts"
+    },
+    "./types": {
+      "import": "./types.d.ts",
+      "types": "./types.d.ts"
+    }
   },
   "files": [
     "SwivelGrid.js",
+    "SwivelGrid.d.ts",
+    "types.d.ts",
     "llms.txt",
     "llms-full.txt",
     "dist/",
