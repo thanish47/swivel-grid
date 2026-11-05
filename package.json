@@ -1,23 +1,40 @@
 {
   "name": "swivel-grid",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "A framework-agnostic data grid Web Component with a hook-based extension system, bundle loader, and row virtualization.",
   "type": "module",
   "main": "SwivelGrid.js",
   "module": "dist/swivel-grid.esm.js",
+  "types": "SwivelGrid.d.ts",
   "unpkg": "dist/swivel-grid.umd.cjs",
   "jsdelivr": "dist/swivel-grid.umd.cjs",
   "exports": {
     ".": {
       "import": "./SwivelGrid.js",
       "require": "./dist/swivel-grid.umd.cjs",
+      "types": "./SwivelGrid.d.ts",
       "default": "./SwivelGrid.js"
     },
-    "./extensions/*": "./extensions/*.js",
-    "./bundles/*": "./bundles/*.js"
+    "./extensions/*": {
+      "import": "./extensions/*.js",
+      "types": "./extensions/*.d.ts"
+    },
+    "./bundles/*": {
+      "import": "./bundles/*.js",
+      "types": "./bundles/*.d.ts"
+    },
+    "./types": {
+      "import": "./types.d.ts",
+      "types": "./types.d.ts"
+    }
   },
   "files": [
     "SwivelGrid.js",
+    "SwivelGrid.d.ts",
+    "types.d.ts",
+    "schema-column.schema.json",
+    "llms.txt",
+    "llms-full.txt",
     "dist/",
     "extensions/",
     "bundles/",

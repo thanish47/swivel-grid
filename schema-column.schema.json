@@ -1,0 +1,75 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://swivelgrid.thanish.com/schema-column.schema.json",
+  "title": "SwivelGrid Schema Column",
+  "description": "Defines a single column in a SwivelGrid schema array. Pass an array of these objects to grid.schema.",
+  "type": "object",
+  "required": ["key", "label"],
+  "additionalProperties": false,
+  "properties": {
+    "key": {
+      "type": "string",
+      "description": "Property name on each row object whose value is displayed in this column. Required."
+    },
+    "label": {
+      "type": "string",
+      "description": "Column header display text. Required."
+    },
+    "sort": {
+      "type": "string",
+      "enum": ["ASC", "DESC"],
+      "description": "Initial sort direction for this column. Only one column is sorted at a time."
+    },
+    "sortable": {
+      "type": "boolean",
+      "default": true,
+      "description": "Whether clicking the column header triggers sorting. Set to false to disable."
+    },
+    "type": {
+      "type": "string",
+      "description": "Deprecated. Use cellTemplate instead. Only 'image' retains a visual effect in card/grid layout."
+    },
+    "cellTemplate": {
+      "type": "string",
+      "description": "Handlebars-style template for cell content. Available variables: {{value}}, {{row.fieldName}}, {{renderRating(value)}}, {{renderImage(value)}}, {{formatDate(value)}}, {{formatNumber(value)}}, {{formatCurrency(value)}}, {{capitalize(value)}}, {{truncate(value, 50)}}."
+    },
+    "headerTemplate": {
+      "type": "string",
+      "description": "Handlebars-style template for the header cell. Available variables: {{label}}, {{column}}."
+    },
+    "cellClass": {
+      "type": "string",
+      "description": "CSS class name(s) applied to the cell content wrapper. Requires CssClassesExtension. Function form (value, row) => string is not expressible in JSON — set via JS."
+    },
+    "headerClass": {
+      "type": "string",
+      "description": "CSS class name(s) applied to the <th> header cell. Requires CssClassesExtension."
+    },
+    "rowClass": {
+      "type": "string",
+      "description": "CSS class name(s) applied to the <tr> row. Requires CssClassesExtension. Function form (row) => string is not expressible in JSON — set via JS."
+    },
+    "className": {
+      "type": "string",
+      "description": "CSS class applied to the <td> element in table layout."
+    },
+    "columnClass": {
+      "type": "string",
+      "description": "CSS class applied to the entire column (both <th> and <td>)."
+    },
+    "minWidth": {
+      "type": "string",
+      "pattern": "^[0-9]+(px|em|rem|%)$",
+      "description": "Minimum column width CSS value, e.g. '120px', '10rem'."
+    },
+    "maxWidth": {
+      "type": "string",
+      "pattern": "^[0-9]+(px|em|rem|%)$",
+      "description": "Maximum column width CSS value, e.g. '300px'."
+    },
+    "width": {
+      "type": "string",
+      "description": "Fixed column width CSS value applied as inline style to <th> and <td>."
+    }
+  }
+}

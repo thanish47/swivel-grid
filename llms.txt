@@ -1,0 +1,309 @@
+# SwivelGrid
+
+> A framework-agnostic data grid Web Component (`<swivel-grid>`) with a hook-based extension system. Renders data as a card grid or sortable table. No dependencies, no build step required.
+
+- **npm:** https://www.npmjs.com/package/swivel-grid
+- **Live demo / Bundle Builder:** https://swivelgrid.thanish.com
+- **Full API Reference:** https://swivelgrid.thanish.com/API_REFERENCE.md
+- **Architecture guide:** https://swivelgrid.thanish.com/ARCHITECTURE.md
+- **Bundle system guide:** https://swivelgrid.thanish.com/BUNDLE_SYSTEM_GUIDE.md
+
+---
+
+## Install
+
+**npm / yarn / pnpm**
+```sh
+npm install swivel-grid
+```
+
+**CDN — UMD (plain script tag, no module system)**
+```html
+<script src="https://unpkg.com/swivel-grid/dist/swivel-grid.umd.cjs"></script>
+```
+
+**CDN — ESM (type="module")**
+```html
+<script type="module">
+  import { SwivelGrid } from 'https://unpkg.com/swivel-grid/dist/swivel-grid.esm.js';
+  import { LayoutRendererExtension } from 'https://unpkg.com/swivel-grid/extensions/LayoutRendererExtension.js';
+</script>
+```
+
+**Bundle Builder — single-file download (no package manager)**
+Visit https://swivelgrid.thanish.com, pick the extensions you need, and download a ready-to-use `.js` file.
+```html
+<script type="module" src="./swivel-grid-custom.js"></script>
+```
+
+---
+
+## Core usage pattern
+
+```js
+import { SwivelGrid } from 'swivel-grid';
+import { LayoutRendererExtension } from 'swivel-grid/extensions/LayoutRendererExtension';
+import { SortingExtension } from 'swivel-grid/extensions/SortingExtension';
+
+// 1. Get the element
+const grid = document.querySelector('swivel-grid');
+
+// 2. Register extensions (order matters for priority)
+grid.registerExtension(new LayoutRendererExtension()); // required — renders layout
+grid.registerExtension(new SortingExtension());         // optional — adds column sort
+
+// 3. Set schema (column definitions)
+grid.schema = [
+  { key: 'name',  label: 'Name',   sortable: true },
+  { key: 'email', label: 'Email',  sortable: false },
+  { key: 'score', label: 'Score',  sort: 'DESC' }
+];
+
+// 4. Set rows
+grid.rows = [
+  { name: 'Alice', email: 'alice@example.com', score: 95 },
+  { name: 'Bob',   email: 'bob@example.com',   score: 82 }
+];
+
+// 5. Switch layout
+grid.layoutType = 'table'; // 'grid' (default) or 'table'
+```
+
+HTML:
+```html
+<swivel-grid id="my-grid"></swivel-grid>
+<script type="module" src="./app.js"></script>
+```
+
+---
+
+## Extensions
+
+| Name | Import path | Purpose |
+|------|------------|---------|
+| `LayoutRendererExtension` | `swivel-grid/extensions/LayoutRendererExtension` | **Required.** Renders table rows and grid cards. |
+| `TemplateExtension` | `swivel-grid/extensions/TemplateExtension` | `{{value}}`-style cell/header templates with built-in helpers. |
+| `SortingExtension` | `swivel-grid/extensions/SortingExtension` | Column sort on click, ASC/DESC, custom comparators. |
+| `SearchExtension` | `swivel-grid/extensions/SearchExtension` | Binds an external `<input>` for live search/filter. |
+| `PaginationExtension` | `swivel-grid/extensions/PaginationExtension` | Infinite scroll and page-based server data loading. |
+| `CssClassesExtension` | `swivel-grid/extensions/CssClassesExtension` | Per-cell, per-header, per-row CSS class application. |
+| `AccessibilityExtension` | `swivel-grid/extensions/AccessibilityExtension` | ARIA labels and keyboard navigation. |
+
+All extensions extend `BaseExtension` from `swivel-grid/extensions/BaseExtension`.
+
+### Extension management on the grid element
+
+```js
+grid.registerExtension(ext)                     // → boolean
+grid.unregisterExtension('sorting')             // → boolean
+grid.getExtension('sorting')                    // → BaseExtension | null
+grid.hasExtension('sorting')                    // → boolean
+grid.listExtensions()                           // → string[]
+grid.swapExtension('sorting', newInstance)      // → boolean (hot-replace)
+grid.toggleExtension('sorting', false)          // → boolean (disable without removing)
+grid.toggleExtension('sorting', true, false)    // rerender=false skips render
+```
+
+---
+
+## Schema column fields
+
+Each object in `grid.schema` describes one column. `key` and `label` are required.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `key` | `string` | Property name on each row object. **Required.** |
+| `label` | `string` | Column header text. **Required.** |
+| `sortable` | `boolean` | Whether clicking the header triggers sort. Default `true`. |
+| `sort` | `'ASC' \| 'DESC'` | Initial sort direction. Only one column sorted at a time. |
+| `sortComparator` | `Function` | Custom sort: `(a, b, rowA, rowB) => number`. |
+| `cellTemplate` | `string` | Template for cell content. Use `{{value}}`, `{{row.field}}`, helpers. |
+| `headerTemplate` | `string` | Template for header cell. Use `{{label}}`. |
+| `cellClass` | `string \| Function` | CSS class(es) on the cell wrapper. Function: `(value, row) => string`. |
+| `headerClass` | `string` | CSS class(es) on the `<th>`. |
+| `className` | `string` | CSS class on the `<td>` element (table layout). |
+| `columnClass` | `string` | CSS class on the whole column. |
+| `minWidth` | `string` | CSS min-width, e.g. `'120px'`. |
+| `maxWidth` | `string` | CSS max-width, e.g. `'300px'`. |
+| `type` | `string` | **Deprecated.** Use `cellTemplate` instead. |
+
+### cellTemplate helpers
+
+```
+{{value}}                    — raw cell value
+{{row.fieldName}}            — another field from the same row
+{{renderRating(value)}}      — star rating (supports "4/5", 4, { value:4, max:5 })
+{{renderImage(value)}}       — <img> tag (supports URL string or { src, alt })
+{{formatDate(value)}}        — formatted date
+{{formatNumber(value)}}      — formatted number
+{{formatCurrency(value)}}    — formatted currency
+{{capitalize(value)}}        — capitalize first letter
+{{truncate(value, 50)}}      — truncate to N characters
+```
+
+---
+
+## Grid properties and data methods
+
+```js
+grid.schema = [...];                          // Array of SchemaColumn — triggers render
+grid.rows = [...];                            // Array of row objects — triggers render
+grid.layoutType = 'table';                    // 'grid' | 'table'
+grid.searchInput = '#search-box';            // CSS selector — binds SearchExtension
+grid.sortHandler = ({ key, direction }) => {}; // callback for server-side sort
+grid.searchHandler = (query) => {};           // callback for server-side search
+
+grid.setData(rows);                           // replace rows + reset pagination + render
+grid.appendData(rows);                        // append rows without full re-render (PaginationExtension)
+grid.setPageData(data, pageNumber?);          // replace rows for a given page (PaginationExtension)
+grid.render();                                // force re-render
+grid.destroy();                               // teardown all extensions and listeners
+grid.getDOMElements();                        // → { tbody, gridContainer }
+```
+
+### Pagination properties (set after registering PaginationExtension)
+
+```js
+grid.pageSize = 20;
+grid.totalPages = null;       // null = client-side only; number = server-side
+grid.loading = false;
+grid.loadMoreCallback = () => fetchNextPage();
+```
+
+---
+
+## Bundle system
+
+Load a curated set of extensions in one call instead of registering individually.
+
+```js
+import StandardBundle from 'swivel-grid/bundles/StandardBundle';
+import AdvancedBundle from 'swivel-grid/bundles/AdvancedBundle';
+import BundleBuilder   from 'swivel-grid/bundles/BundleBuilder';
+
+// StandardBundle: LayoutRenderer + Templates + Sorting (~33-38 KB)
+await StandardBundle.loadInto(grid);
+
+// AdvancedBundle: all 7 extensions (~63-68 KB)
+await AdvancedBundle.loadInto(grid);
+
+// BundleBuilder: pick exactly what you need (deps auto-resolved)
+const exts = new BundleBuilder()
+  .addFeature('sorting')
+  .addFeature('search')
+  .build();
+exts.forEach(ext => grid.registerExtension(ext));
+
+// Presets: 'table-focused' | 'designer' | 'data-heavy' |
+//          'minimal-interactive' | 'dashboard' | 'enterprise'
+const exts2 = BundleBuilder.fromPreset('enterprise').build();
+```
+
+---
+
+## Events
+
+All events bubble and cross shadow DOM boundaries. Listen on the `<swivel-grid>` element.
+
+| Event | Fired when | `event.detail` shape |
+|-------|-----------|---------------------|
+| `swivel:sort` | Column header clicked | `{ key: string, direction: 'ASC' \| 'DESC' }` |
+| `swivel:search` | Search input changes | `{ query: string }` |
+| `swivel:data` | `setData()` called | `{ rows: Array }` |
+| `swivel:pageThreshold` | Scroll reaches 80% | `{ currentPage: number, visibleEndIndex: number }` |
+| `swivel:pageDown` | Page decremented | `{ pageNumber: number }` |
+| `swivel:pageUp` | Page incremented | `{ pageNumber: number }` |
+| `swivel:virtualization-update` | Virtual scroll re-renders | `{ visibleRange: { start, end }, renderCount, lastRenderTime }` |
+
+```js
+grid.addEventListener('swivel:sort', e => {
+  const { key, direction } = e.detail;
+  fetchSortedData(key, direction).then(rows => grid.setData(rows));
+});
+
+grid.addEventListener('swivel:pageThreshold', e => {
+  fetchNextPage().then(rows => grid.appendData(rows));
+});
+```
+
+---
+
+## Writing a custom extension
+
+```js
+import { BaseExtension } from 'swivel-grid/extensions/BaseExtension';
+
+class MyExtension extends BaseExtension {
+  constructor() {
+    super('my-extension'); // unique name string
+    this.priority = 60;    // lower = runs earlier; default 0
+  }
+
+  onInitialize(grid) {
+    // called once when registered
+  }
+
+  onBeforeRender(context) {
+    // context: { schema, rows, layoutType, searchInput, layoutHTML }
+    // must return context (mutate or replace)
+    return context;
+  }
+
+  onAfterRender(context, rootElement) {
+    // DOM is live; rootElement is the shadow root
+  }
+
+  onDestroy() {
+    // cleanup
+  }
+}
+
+grid.registerExtension(new MyExtension());
+```
+
+---
+
+## TypeScript
+
+Type declarations are included in the package. No `@types/` install needed.
+
+```ts
+import { SwivelGrid } from 'swivel-grid';
+import type { SchemaColumn } from 'swivel-grid/types';
+import { SortingExtension } from 'swivel-grid/extensions/SortingExtension';
+
+const grid = document.querySelector<SwivelGrid>('swivel-grid')!;
+const schema: SchemaColumn[] = [
+  { key: 'name', label: 'Name', sortable: true }
+];
+grid.schema = schema;
+grid.registerExtension(new SortingExtension());
+```
+
+---
+
+## JSON Schema for column definitions
+
+A JSON Schema for `SchemaColumn` is available for IDE validation and agent code generation:
+
+```
+https://unpkg.com/swivel-grid/schema-column.schema.json
+```
+
+---
+
+## Styling
+
+Override CSS custom properties on the element:
+
+```css
+swivel-grid {
+  --primary-color: #007acc;
+  --border-color:  #e1e5e9;
+  --hover-color:   #f8f9fa;
+  --text-color:    #24292f;
+  --star-color:    #fbbf24;
+}
+```
+
+The scroll area has a fixed `max-height` of 600px (400px under 768px wide).

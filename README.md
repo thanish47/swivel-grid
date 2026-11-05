@@ -3,6 +3,7 @@
 A framework-agnostic data grid built as a native Web Component (`<swivel-grid>`). Shows data as a card grid or a sortable table, with a hook-based extension system for adding features without touching the core.
 
 **Live demo:** https://swivelgrid.thanish.com/
+**LLM/AI context:** https://swivelgrid.thanish.com/llms.txt
 
 **Status:** v1, modular extension architecture, no dependencies, no build step. 439 tests passing.
 
@@ -132,6 +133,8 @@ Each object in `schema` describes one column.
 | `cellTemplate` | string | `{{value}}`-style template for the cell. See [Templates](#templates). |
 | `headerTemplate` | string | Template for the header cell. |
 | `headerClass`, `cellClass` | string | CSS class names added inside the Shadow DOM. |
+
+> **JSON Schema** (for IDE validation and agent code generation): [`schema-column.schema.json`](https://unpkg.com/swivel-grid/schema-column.schema.json)
 
 **Rating values** can be `"4/5"`, `4` (out of 5), or `{ value: 4, max: 5 }`. Invalid values show `—`.  
 **Image values** can be a URL string or `{ src, alt }`. Missing images show a placeholder.  
