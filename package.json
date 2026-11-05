@@ -1,6 +1,6 @@
 {
   "name": "swivel-grid",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "A framework-agnostic data grid Web Component with a hook-based extension system, bundle loader, and row virtualization.",
   "type": "module",
   "main": "SwivelGrid.js",
