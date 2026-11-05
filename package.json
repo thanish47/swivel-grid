@@ -13,11 +13,11 @@
       "require": "./dist/swivel-grid.umd.cjs",
       "default": "./SwivelGrid.js"
     },
-    "./extensions/*": "./extensions/*.js",
-    "./bundles/*": "./bundles/*.js"
   },
   "files": [
     "SwivelGrid.js",
+    "llms.txt",
+    "llms-full.txt",
     "dist/",
     "extensions/",
     "bundles/",

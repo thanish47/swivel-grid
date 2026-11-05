@@ -1,0 +1,479 @@
+# SwivelGrid — Full API Reference
+> Source: API_REFERENCE.md — embedded for LLM/agent consumption without requiring link-following.
+> Primary context file: https://swivelgrid.thanish.com/llms.txt
+
+# SwivelGrid API Reference
+
+Complete reference for every public method, property, event, and schema field.
+
+---
+
+## SwivelGrid (Core Web Component)
+
+`SwivelGrid` is a native Web Component (`<swivel-grid>`). Register it by including `SwivelGrid.js` — the class self-registers via `customElements.define`.
+
+### HTML Attributes
+
+| Attribute | Accepted values | Notes |
+|-----------|----------------|-------|
+| `layout-type` | `"grid"` \| `"table"` | Sets layout mode. Ignored if the `layoutType` property has already been set programmatically. |
+| `schema` | JSON array string | Parsed once on connect. Property setter takes precedence. |
+| `rows` | JSON array string | Parsed once on connect. Property setter takes precedence. |
+| `search-input` | CSS selector string | Binds to an external `<input>` for search (requires SearchExtension). |
+
+### Properties
+
+| Property | Type | Default | Side-effects |
+|----------|------|---------|-------------|
+| `layoutType` | `string` | `'grid'` | Sets `_layoutType` (normalises `'list'` → `'table'`). Marks `_propSet.layoutType = true`. Does **not** auto-render. |
+| `schema` | `Array` | `[]` | Processes each column via TemplateExtension (if loaded). Triggers `render()`. |
+| `rows` | `Array` | `[]` | Stores a copy of the array. Triggers `render()`. |
+| `searchInput` | `string` | `null` | Delegates to `SearchExtension.bindSearchInput()` if loaded. |
+| `sortHandler` | `Function\|null` | `null` | Called by SortingExtension with `{ key, direction }` when a column is sorted. Non-function values are coerced to `null`. |
+| `searchHandler` | `Function\|null` | `null` | Called by SearchExtension with the query string when a search fires. |
+
+### Extension Management
+
+```js
+el.registerExtension(extension)         // → boolean
+el.unregisterExtension(extensionName)   // → boolean
+el.getExtension(extensionName)          // → BaseExtension | null
+el.hasExtension(extensionName)          // → boolean
+el.listExtensions()                     // → string[]
+el.swapExtension(name, newInstance)     // → boolean
+el.toggleExtension(name, enabled, rerender?) // → boolean
+```
+
+#### `registerExtension(extension)` → `boolean`
+Registers a `BaseExtension` instance. Calls `extension.initialize(this)`, inserts the extension into `beforeRender` and `afterRender` hook arrays sorted by `extension.priority` (ascending). Returns `false` if the extension has no `name` or a same-named extension is already registered.
+
+#### `unregisterExtension(extensionName)` → `boolean`
+Removes the extension from the map and hooks, then calls `extension.destroy()`. Returns `false` if no extension with that name exists.
+
+#### `getExtension(extensionName)` → `BaseExtension | null`
+Returns the registered extension instance or `null`.
+
+#### `hasExtension(extensionName)` → `boolean`
+
+#### `listExtensions()` → `string[]`
+Returns extension names in registration order.
+
+#### `swapExtension(name, newExtensionInstance)` → `boolean`
+Hot-replaces the named extension without touching other registered extensions. Calls `unregisterExtension(name)` (no-op if not found), then `registerExtension(newExtensionInstance)`. Returns the result of the `registerExtension` call.
+
+#### `toggleExtension(name, enabled, rerender = true)` → `boolean`
+Calls `extension.setEnabled(enabled)`. If `rerender` is `true` (default), calls `this.render()`. Returns `false` if extension not found.
+
+### Data Methods
+
+#### `setData(rows)` → `void`
+Replaces `_rows` and calls `PaginationExtension.resetPaginationState()` (if loaded), then `render()`. Dispatches `swivel:data` event.
+
+#### `render()` → `void`
+Executes all `beforeRender` hooks in priority order, sets `shadowRoot.innerHTML` to `context.layoutHTML`, then executes all `afterRender` hooks.
+
+#### `destroy()` → `void`
+Calls `extension.destroy()` on every registered extension, clears `_extensions` map, empties hook arrays.
+
+### Style & Event Utilities
+
+#### `addExtensionStyles(css, id)` → `boolean`
+Injects a `<style data-extension-id="id">` tag into the shadow DOM. Safe to call multiple times — replaces existing style with same `id`.
+
+#### `removeExtensionStyles(id)` → `boolean`
+Removes the `<style>` with the matching `data-extension-id`.
+
+#### `addExtensionEventListener(eventName, handler, extensionName)` → `Function`
+Registers a DOM event listener on the grid element and tracks it under `extensionName` for bulk cleanup. Returns a cleanup function.
+
+#### `cleanupExtensionEventListeners(extensionName)` → `void`
+Removes all listeners registered under `extensionName`.
+
+#### `dispatchExtensionEvent(type, detail)` → `void`
+Fires a `CustomEvent` named `swivel:${type}` (bubbles, composed).
+
+#### `getDOMElements()` → `Object`
+Returns `{ tbody?, gridContainer? }` — live references to key shadow DOM elements.
+
+### Events
+
+All events bubble and are composed (cross shadow DOM boundary).
+
+| Event | Fired by | `event.detail` |
+|-------|----------|---------------|
+| `swivel:sort` | SortingExtension | `{ key: string, direction: 'ASC'|'DESC' }` |
+| `swivel:search` | SearchExtension | `{ query: string }` |
+| `swivel:pageThreshold` | PaginationExtension | `{ currentPage: number, visibleEndIndex: number }` |
+| `swivel:data` | SwivelGrid core | `{ rows: Array }` |
+
+---
+
+## BaseExtension
+
+The base class all extensions extend.
+
+```js
+import { BaseExtension } from './extensions/BaseExtension.js';
+
+class MyExtension extends BaseExtension {
+    constructor() { super('my-extension'); }
+    onAfterRender(context, el) { /* ... */ }
+}
+```
+
+### Constructor
+
+```js
+new BaseExtension(name)
+```
+
+`name` — unique string identifier used by `grid.getExtension(name)`.
+
+### Properties
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `name` | `string` | (required) | Extension identifier |
+| `enabled` | `boolean` | `true` | If `false`, all lifecycle hooks are skipped |
+| `priority` | `number` | `0` | Lower = earlier execution in hook queue |
+
+### Lifecycle Hooks (override these)
+
+```js
+onInitialize(gridInstance)              // called once on registerExtension
+onBeforeRender(context) → context       // must return context
+onAfterRender(context, renderedElement) // DOM is live
+onDestroy()                             // called on unregisterExtension / grid.destroy()
+```
+
+`onBeforeRender` receives and must return the context object (see [Context Object](#context-object)).
+
+### Utility Methods (available inside hooks)
+
+```js
+this.getGrid()                          // → SwivelGrid instance
+this.getGridState()                     // → GridState object
+this.dispatchEvent(eventName, detail?)  // fires swivel:eventName
+this.setEnabled(bool)                   // toggles .enabled
+this.setPriority(number)                // updates .priority
+```
+
+### Context Object
+
+Passed to every `onBeforeRender` call. Must be returned.
+
+```js
+{
+  schema:      Array,   // processed column definitions
+  rows:        Array,   // current row data
+  layoutType:  string,  // 'grid' | 'table'
+  searchInput: string,  // CSS selector for bound search input (or null)
+  layoutHTML:  string   // HTML string; set by LayoutRendererExtension
+}
+```
+
+### GridState Object
+
+Returned by `this.getGridState()`.
+
+```js
+{
+  schema:      Array,
+  rows:        Array,
+  layoutType:  string,
+  searchInput: string,
+  loading:     boolean,       // PaginationExtension state (or false)
+  currentPage: number,        // PaginationExtension state (or 1)
+  pageSize:    number,        // PaginationExtension state (or null)
+  totalPages:  number|null    // PaginationExtension state (or null)
+}
+```
+
+---
+
+## BundleBuilder
+
+Chainable utility for composing custom extension bundles with dependency resolution and size estimation.
+
+```js
+const instances = new BundleBuilder()
+    .addFeature('sorting')
+    .addFeature('search')
+    .build();                   // → [LayoutRendererExtension, SortingExtension, SearchExtension]
+
+instances.forEach(ext => grid.registerExtension(ext));
+```
+
+### Constructor
+
+```js
+new BundleBuilder()
+```
+
+### Chainable Feature Methods
+
+#### `addFeature(name, config?)` → `this`
+Adds a feature by name. Duplicate calls are idempotent.  
+`config` is passed to the extension constructor on `build()`.
+
+#### `removeFeature(name)` → `this`
+
+#### `withConfig(featureName, config)` → `this`
+Merges `config` into the stored config for an already-added feature.
+
+#### `hasFeature(name)` → `boolean`
+
+### Processing Methods
+
+#### `resolveDependencies()` → `{ resolved: string[], added: string[] }`
+Auto-adds any missing dependencies to the feature list. Mutates internal state. Call before `validate()` / `build()` if you want the check to pass without manually adding deps.
+
+#### `validate()` → `{ valid: boolean, errors: string[] }`
+Validates the current feature set without building. Checks for unknown names, missing deps, and conflicts.
+
+#### `estimateSize()` → `{ kb: number, breakdown: Object }`
+Returns estimated minified KB for the current feature set based on static size constants.
+
+```js
+{ kb: 12, breakdown: { 'layout-renderer': 8, 'sorting': 4 } }
+```
+
+### Build Method
+
+#### `build()` → `BaseExtension[]`
+Calls `resolveDependencies()`, validates, instantiates all extension classes from global scope, and returns them sorted by priority. **Throws** if validation fails or an extension class is not found in global scope.
+
+### Serialization
+
+#### `toConfig()` → `{ version: 1, features: Array }`
+Returns a plain JSON-serializable object. Store it and restore with `fromConfig`.
+
+#### `static BundleBuilder.fromConfig(configObj)` → `BundleBuilder`
+Restores a builder from a `toConfig()` output. Throws if `configObj` is null or lacks a `features` array.
+
+#### `static BundleBuilder.fromPreset(presetName)` → `BundleBuilder`
+Creates a builder pre-populated from one of the six named presets. Throws if preset name is unknown.
+
+### Available Features
+
+| Feature name | Extension class | Est. KB | Requires |
+|---|---|---|---|
+| `'layout-renderer'` | `LayoutRendererExtension` | 8 | — |
+| `'templates'` | `TemplateExtension` | 5 | — |
+| `'sorting'` | `SortingExtension` | 4 | `layout-renderer` |
+| `'search'` | `SearchExtension` | 3 | `layout-renderer` |
+| `'pagination'` | `PaginationExtension` | 6 | `layout-renderer` |
+| `'css-classes'` | `CssClassesExtension` | 3 | `layout-renderer` |
+| `'accessibility'` | `AccessibilityExtension` | 4 | `layout-renderer` |
+
+### Presets
+
+| Preset name | Features |
+|---|---|
+| `'table-focused'` | layout-renderer, sorting, search, pagination |
+| `'designer'` | layout-renderer, templates, css-classes |
+| `'data-heavy'` | layout-renderer, templates, pagination, search |
+| `'minimal-interactive'` | layout-renderer, sorting |
+| `'dashboard'` | layout-renderer, templates, css-classes |
+| `'enterprise'` | layout-renderer, templates, sorting, search, pagination, css-classes, accessibility |
+
+---
+
+## BundleLoader
+
+Orchestrates loading bundles, presets, and use-case configurations into a grid.
+
+All async load methods return:
+```js
+{ success: boolean, loadedExtensions: string[], errors: string[] }
+```
+
+### Instance Methods
+
+#### `async loadBundle(gridInstance, bundleName, options?)` → `Promise<Result>`
+`bundleName`: `'standard'` | `'advanced'`
+
+#### `async loadForUseCase(gridInstance, useCase, options?)` → `Promise<Result>`
+Maps a use case string to a bundle or preset and loads it.
+
+**Valid use case strings:**
+
+| Use case | Loads |
+|----------|-------|
+| `'data-table'` | standard bundle |
+| `'sortable-list'` | standard bundle |
+| `'product-catalog'` | standard bundle |
+| `'user-listing'` | standard bundle |
+| `'minimal'` | advanced / `minimal-interactive` preset |
+| `'dashboard'` | advanced / `dashboard` preset |
+| `'content-management'` | advanced / `table-focused` preset |
+| `'analytics'` | advanced / `data-heavy` preset |
+| `'admin-interface'` | advanced / `enterprise` preset |
+| `'enterprise'` | advanced / `enterprise` preset |
+
+#### `async loadPreset(gridInstance, presetName, options?)` → `Promise<Result>`
+Loads one of the six named presets (see [Presets](#presets) table above).
+
+#### `async loadCustom(gridInstance, extensionNames, options?)` → `Promise<Result>`
+Loads an arbitrary subset of extension names. No dependency resolution — list all needed names explicitly.
+
+#### `async loadFromConfig(gridInstance, configObj, options?)` → `Promise<Result>`
+Restores a `BundleBuilder.toConfig()` output and loads the resulting extensions.
+
+#### `recommendBundle(requirements)` → `Recommendation`
+```js
+// requirements fields (all boolean, all optional):
+{
+  needsSorting:        false,
+  needsSearch:         false,
+  needsPagination:     false,
+  needsTemplates:      false,
+  needsAccessibility:  false,
+  needsCustomStyling:  false,
+  prioritizeSize:      false   // prefer smaller bundle
+}
+// returns:
+{
+  bundle: string,
+  preset: string | null,
+  reason: string,
+  estimatedSize: string,
+  features: string[]
+}
+```
+
+#### `getBundleInfo()` → `Object`  
+Returns metadata for both bundles (name, version, extensions list, estimated size, use cases).
+
+#### `getPresets()` → `Object`  
+Returns `{ presetName: string[] }` mapping.
+
+#### `getUseCaseRecommendations()` → `Object`  
+Returns `{ useCaseName: { bundle, preset?, description, extensions[] } }`.
+
+#### `getBundleSizes()` → `Object`  
+Returns `{ 'core-only': {...}, 'standard': {...}, 'advanced': {...} }` with `estimatedSize` and `lineCount` strings.
+
+#### `checkCompatibility(gridInstance, bundleName)` → `{ compatible: boolean, issues: string[] }`
+
+#### `getLoadHistory()` → `Array`  
+Each entry: `{ timestamp, bundleName, gridId, success, extensionsLoaded }`.
+
+#### `clearLoadHistory()` → `void`
+
+### Static Methods
+
+```js
+BundleLoader.quickLoad(gridInstance, bundleName, options?)          // → Promise<Result>
+BundleLoader.quickLoadForUseCase(gridInstance, useCase, options?)   // → Promise<Result>
+BundleLoader.loadFromConfig(gridInstance, configObj, options?)      // → Promise<Result>
+```
+
+---
+
+## ExtensionLoader
+
+Manages loading and unloading extensions programmatically.
+
+### Constructor
+
+```js
+const loader = new ExtensionLoader();
+```
+
+### Preset Setup Methods
+
+#### `loadMinimalSetup(grid)` → `string[]`
+Registers `layout-renderer` only. Returns `['layout-renderer']`.
+
+#### `loadStandardSetup(grid)` → `string[]`
+Registers `layout-renderer`, `templates`, `sorting`. Returns array of loaded names.
+
+#### `loadAdvancedSetup(grid)` → `string[]`
+Registers all 7 extensions in priority order. Returns array of loaded names.
+
+### Custom Loading
+
+#### `loadCustomBundle(grid, featureList, config?)` → `{ loaded, skipped, errors }`
+Uses `BundleBuilder` to resolve dependencies before loading. `config` is an object keyed by feature name.
+- `loaded` — extension names registered in this call
+- `skipped` — names already registered on the grid (not re-registered)
+- `errors` — validation or registration failures
+
+#### `createCustomSetup(grid, configObj)` → `{ loaded, skipped, errors }`
+Equivalent to `loadCustomBundle` but takes a `BundleBuilder.toConfig()` object as input.
+
+#### `async lazyLoad(grid, extensionPath, config?)` → `Promise<boolean>`
+Dynamically `import()`s a module from `extensionPath`, extracts the default or first exported class, instantiates it with `config`, and registers it. Returns `true` on success.
+
+### Per-Extension Methods
+
+#### `loadExtension(grid, Extension, config?)` → `boolean`
+`Extension` may be a constructor function or an already-instantiated instance.
+
+#### `loadExtensions(grid, extensions)` → `string[]`
+`extensions` is an array of `{ Extension, name?, config?, priority? }` objects.
+
+#### `unloadExtension(grid, extensionName)` → `boolean`
+
+#### `unloadAllExtensions(grid)` → `number`
+Returns the count of extensions unloaded.
+
+### Inspection & Control
+
+#### `getExtensionInfo(extensionName)` → `{ name, enabled, priority, type } | null`
+
+#### `listLoadedExtensions()` → `Array<{ name, enabled, priority, type }>`
+
+#### `setExtensionEnabled(extensionName, enabled)` → `boolean`
+
+#### `setExtensionPriority(extensionName, priority)` → `boolean`
+
+---
+
+## Schema Column Definition
+
+Each object in the `schema` array may have the following fields:
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `key` | `string` | **required** | Maps to the row data property name |
+| `label` | `string` | `''` | Column header text |
+| `sortable` | `boolean` | `true` | Whether clicking the header triggers sort |
+| `sort` | `'ASC'` \| `'DESC'` \| `undefined` | `undefined` | Initial sort direction; set by SortingExtension after sort |
+| `sortComparator` | `Function` | `undefined` | Custom comparator `(a, b, rowA, rowB) → number` |
+| `cellTemplate` | `string` | `undefined` | Handlebars-style template string for cell content |
+| `headerTemplate` | `string` | `undefined` | Template string for header cell content |
+| `cellClass` | `string` | `undefined` | CSS class(es) applied to the cell wrapper `<span>` (requires CssClassesExtension) |
+| `headerClass` | `string` | `undefined` | CSS class(es) applied to the `<th>` (requires CssClassesExtension) |
+| `rowClass` | `string\|Function` | `undefined` | CSS class added to `<tr>`. If a function: `(row) → string` |
+| `type` | `string` | `undefined` | **Deprecated.** `'rating'` or `'image'` — use `cellTemplate` instead |
+| `width` | `string` | `undefined` | CSS width value applied as inline style to `<th>` and `<td>` |
+| `minWidth` | `string` | `undefined` | CSS min-width value |
+
+### Template Variables
+
+Templates are `{{variable}}` style. Available variables inside a `cellTemplate`:
+- `{{value}}` — the raw cell value
+- `{{row.fieldName}}` — any field from the current row object
+- `{{renderRating(value)}}` — render a star rating
+- `{{renderImage(value)}}` — render an `<img>` tag
+- `{{formatDate(value)}}` — format a date string
+- `{{formatNumber(value)}}` — format a number
+- `{{formatCurrency(value)}}` — format as currency
+- `{{capitalize(value)}}` — capitalize first letter
+- `{{truncate(value, 50)}}` — truncate to N characters
+
+---
+
+## Extension Priority Reference
+
+| Extension | Priority | Why |
+|-----------|----------|-----|
+| PaginationExtension | 5 | Must inject `pageSize`/`totalPages` setters before schema/rows are set |
+| LayoutRendererExtension | 10 | Must generate `layoutHTML` before other hooks read the DOM |
+| TemplateExtension | 20 | Processes schema templates before rendering |
+| SortingExtension | 30 | Reads `layoutHTML` already set; attaches listeners in `afterRender` |
+| SearchExtension | 40 | Binds to external input after render |
+| CssClassesExtension | 50 | Applies CSS classes to already-rendered cells in `afterRender` |
+| AccessibilityExtension | 100 | Adds ARIA attributes to fully-rendered DOM last |
